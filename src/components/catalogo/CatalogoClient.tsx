@@ -6,6 +6,8 @@ import { Filtros, FILTROS_VACIOS, type ValorFiltros } from "./Filtros";
 import { ProductGrid } from "./ProductGrid";
 import { EstadoVacio } from "./EstadoVacio";
 
+const POR_PAGINA = 100;
+
 function unicosOrdenados(valores: (string | undefined)[]): string[] {
   return Array.from(new Set(valores.filter((v): v is string => Boolean(v)))).sort((a, b) =>
     a.localeCompare(b, "es"),
@@ -14,6 +16,7 @@ function unicosOrdenados(valores: (string | undefined)[]): string[] {
 
 export function CatalogoClient({ productos }: { productos: Producto[] }) {
   const [filtros, setFiltros] = useState<ValorFiltros>(FILTROS_VACIOS);
+  const [pagina, setPagina] = useState(1);
 
   const marcas = useMemo(() => unicosOrdenados(productos.map((p) => p.marca)), [productos]);
   const generos = useMemo(() => unicosOrdenados(productos.map((p) => p.genero)), [productos]);
@@ -35,12 +38,30 @@ export function CatalogoClient({ productos }: { productos: Producto[] }) {
     });
   }, [productos, filtros]);
 
+  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
+  const paginaActual = Math.min(pagina, totalPaginas);
+  const paginados = useMemo(
+    () => filtrados.slice((paginaActual - 1) * POR_PAGINA, paginaActual * POR_PAGINA),
+    [filtrados, paginaActual],
+  );
+
+  function cambiarFiltros(v: ValorFiltros) {
+    setFiltros(v);
+    setPagina(1);
+  }
+
+  function irAPagina(p: number) {
+    setPagina(p);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   return (
     <div className="flex flex-col gap-5">
-      <Filtros marcas={marcas} generos={generos} colores={colores} valor={filtros} onChange={setFiltros} />
+      <Filtros marcas={marcas} generos={generos} colores={colores} valor={filtros} onChange={cambiarFiltros} />
 
       <p className="text-xs text-ink-500" role="status">
         {filtrados.length} {filtrados.length === 1 ? "producto" : "productos"}
+        {totalPaginas > 1 && ` · página ${paginaActual} de ${totalPaginas}`}
       </p>
 
       {filtrados.length === 0 ? (
@@ -50,7 +71,7 @@ export function CatalogoClient({ productos }: { productos: Producto[] }) {
           accion={
             <button
               type="button"
-              onClick={() => setFiltros(FILTROS_VACIOS)}
+              onClick={() => cambiarFiltros(FILTROS_VACIOS)}
               className="rounded-full bg-ink-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-ink-700"
             >
               Limpiar filtros
@@ -58,7 +79,33 @@ export function CatalogoClient({ productos }: { productos: Producto[] }) {
           }
         />
       ) : (
-        <ProductGrid productos={filtrados} />
+        <>
+          <ProductGrid productos={paginados} />
+
+          {totalPaginas > 1 && (
+            <nav className="mt-4 flex items-center justify-center gap-3" aria-label="Paginado del catálogo">
+              <button
+                type="button"
+                disabled={paginaActual <= 1}
+                onClick={() => irAPagina(paginaActual - 1)}
+                className="rounded-full border border-ink-200 px-4 py-2 text-sm font-medium text-ink-900 transition-colors hover:border-ink-900 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Anterior
+              </button>
+              <span className="text-sm text-ink-500">
+                {paginaActual} / {totalPaginas}
+              </span>
+              <button
+                type="button"
+                disabled={paginaActual >= totalPaginas}
+                onClick={() => irAPagina(paginaActual + 1)}
+                className="rounded-full border border-ink-200 px-4 py-2 text-sm font-medium text-ink-900 transition-colors hover:border-ink-900 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Siguiente
+              </button>
+            </nav>
+          )}
+        </>
       )}
     </div>
   );
