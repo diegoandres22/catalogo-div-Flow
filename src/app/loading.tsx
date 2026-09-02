@@ -1,4 +1,5 @@
 import { Header } from "@/components/ui/Header";
+import { Footer } from "@/components/ui/Footer";
 import { SkeletonGrid } from "@/components/catalogo/SkeletonGrid";
 
 export default function CargandoCatalogo() {
@@ -9,6 +10,7 @@ export default function CargandoCatalogo() {
         <div className="mb-5 h-11 w-full max-w-md rounded-full skeleton" />
         <SkeletonGrid />
       </main>
+      <Footer />
     </>
   );
 }

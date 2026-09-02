@@ -1,5 +1,6 @@
 import { leerCatalogoPublico } from "@/lib/blob";
 import { Header } from "@/components/ui/Header";
+import { Footer } from "@/components/ui/Footer";
 import { CatalogoClient } from "@/components/catalogo/CatalogoClient";
 import { EstadoVacio } from "@/components/catalogo/EstadoVacio";
 
@@ -23,6 +24,7 @@ export default async function PaginaCatalogo() {
           <CatalogoClient productos={catalogo.productos} />
         )}
       </main>
+      <Footer />
     </>
   );
 }
