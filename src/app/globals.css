@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+/*
+  Sistema de diseño del catálogo — tokens únicos, reutilizados en todos los
+  componentes. No usar colores/espaciados sueltos fuera de esta escala.
+
+  Escala tipográfica (roles, no tamaños libres):
+    - tipo-marca      -> text-xs uppercase tracking-wide, color secundario
+    - tipo-titulo     -> text-sm/base font-medium, color primario
+    - tipo-titulo-lg  -> text-xl/2xl font-semibold (detalle de producto)
+    - tipo-precio     -> text-base/lg font-semibold, color primario
+    - tipo-meta       -> text-xs, color secundario (stock, cantidad por bulto)
+
+  Escala de espaciado: la de Tailwind (múltiplos de 4px). No usar valores
+  arbitrarios (p-[13px]) salvo casos justificados de layout puntual.
+*/
+
+:root {
+  --color-paper: #fbfaf8;
+  --color-paper-raised: #ffffff;
+
+  --color-ink-900: #1c1a17;
+  --color-ink-700: #4a453e;
+  --color-ink-500: #78716c;
+  --color-ink-300: #d6d2cb;
+  --color-ink-200: #e7e4de;
+  --color-ink-100: #f1efe9;
+
+  --color-accent-600: #b45309;
+  --color-accent-700: #92400e;
+  --color-accent-100: #fdf1e0;
+
+  --color-danger-600: #b91c1c;
+  --color-danger-100: #fdecec;
+
+  --color-success-600: #15803d;
+  --color-success-100: #eafaf0;
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+@theme inline {
+  --color-paper: var(--color-paper);
+  --color-paper-raised: var(--color-paper-raised);
+  --color-ink-900: var(--color-ink-900);
+  --color-ink-700: var(--color-ink-700);
+  --color-ink-500: var(--color-ink-500);
+  --color-ink-300: var(--color-ink-300);
+  --color-ink-200: var(--color-ink-200);
+  --color-ink-100: var(--color-ink-100);
+  --color-accent-600: var(--color-accent-600);
+  --color-accent-700: var(--color-accent-700);
+  --color-accent-100: var(--color-accent-100);
+  --color-danger-600: var(--color-danger-600);
+  --color-danger-100: var(--color-danger-100);
+  --color-success-600: var(--color-success-600);
+  --color-success-100: var(--color-success-100);
+  --font-sans: var(--font-sans);
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink-900);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+/* Estados de foco visibles y consistentes en toda la app (accesibilidad AA). */
+:focus-visible {
+  outline: 2px solid var(--color-accent-600);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@layer utilities {
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    background-color: var(--color-ink-100);
+  }
+  .skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background-image: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+    animation: skeleton-shimmer 1.6s infinite;
+  }
+}
+
+@keyframes skeleton-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after {
+    animation: none;
+  }
+}
