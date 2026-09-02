@@ -27,15 +27,20 @@ export function SelectorTalla({ tallas }: { tallas: TallaVariante[] }) {
               aria-label={agotada ? `Talla ${t.talla}, agotada` : `Talla ${t.talla}`}
               onClick={() => setSeleccionada(t.talla)}
               className={[
-                "min-w-11 rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
+                "relative min-w-11 rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
                 agotada
-                  ? "cursor-not-allowed border-ink-200 text-ink-300 line-through decoration-1"
+                  ? "cursor-not-allowed border-ink-200 bg-ink-100 text-ink-500"
                   : activa
                     ? "border-ink-900 bg-ink-900 text-white"
                     : "border-ink-200 text-ink-900 hover:border-ink-900",
               ].join(" ")}
             >
               {t.talla}
+              {agotada && (
+                <span className="pointer-events-none absolute -right-1.5 -top-1.5 rounded-full border border-ink-200 bg-paper-raised px-1 text-[9px] font-semibold uppercase leading-tight tracking-wide text-ink-500">
+                  agotada
+                </span>
+              )}
             </button>
           );
         })}

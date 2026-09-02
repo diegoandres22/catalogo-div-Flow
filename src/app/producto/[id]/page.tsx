@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { leerCatalogoPublico } from "@/lib/blob";
 import { Header } from "@/components/ui/Header";
+import { Footer } from "@/components/ui/Footer";
 import { Carrusel } from "@/components/detalle/Carrusel";
 import { SelectorTalla } from "@/components/detalle/SelectorTalla";
 import { formatearPrecio } from "@/lib/format";
@@ -71,6 +72,20 @@ export default async function PaginaProducto({ params }: Props) {
 
             <SelectorTalla tallas={producto.tallas} />
 
+            <div className="rounded-xl border border-ink-200 p-3">
+              <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-500">
+                Referencia SAP (talla · SKU)
+              </h2>
+              <ul className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-3">
+                {producto.tallas.map((t) => (
+                  <li key={t.bcdCode} className="flex items-baseline justify-between gap-2 text-ink-700">
+                    <span className="font-medium text-ink-900">{t.talla}</span>
+                    <span className="truncate font-mono text-ink-500">{t.bcdCode}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
             {producto.guiaTallas.length > 0 && (
               <a
                 href={producto.guiaTallas[0]}
@@ -101,6 +116,7 @@ export default async function PaginaProducto({ params }: Props) {
           </div>
         </div>
       </main>
+      <Footer />
     </>
   );
 }
