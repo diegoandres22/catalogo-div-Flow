@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 // Fuente del sistema en vez de next/font/google: carga instantánea, cero
@@ -16,7 +17,20 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="es" className="h-full antialiased">
-      <body className="min-h-full flex flex-col bg-paper text-ink-900">{children}</body>
+      <body className="min-h-full flex flex-col bg-paper text-ink-900">
+        {children}
+        <Toaster
+          position="top-center"
+          richColors
+          closeButton
+          toastOptions={{
+            classNames: {
+              toast: "rounded-xl border border-ink-200 shadow-lg",
+              title: "text-sm font-medium",
+            },
+          }}
+        />
+      </body>
     </html>
   );
 }

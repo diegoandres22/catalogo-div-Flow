@@ -113,10 +113,13 @@ Abrí `.env.local` y completá:
 ADMIN_PASSWORD=elegí-una-contraseña
 ```
 
-`BLOB_READ_WRITE_TOKEN` no hace falta para ver el catálogo público en local
-(sin token se muestra "todavía no hay catálogo publicado", sin romperse).
-Para probar la carga real desde `/admin` en tu máquina, copiá el token desde
-el dashboard de Vercel → **Storage** → tu store de Blob → pestaña `.env.local`.
+Sin credenciales de Blob configuradas en local, el catálogo público se
+muestra igual (estado "todavía no hay catálogo publicado", sin romperse).
+Para probar la carga real desde `/admin` en tu máquina hace falta la
+[Vercel CLI](https://vercel.com/docs/cli) (`vercel link` + `vercel env pull`
+una vez) — no es necesario para editar el resto del sitio, y no es necesario
+en absoluto si solo trabajás subiendo cambios a GitHub y dejando que Vercel
+compile (ver siguiente sección).
 
 **3. Levantar el servidor**
 
@@ -130,8 +133,12 @@ npm run dev
 ## Deploy en Vercel
 
 1. Importar el repositorio en Vercel (**Add New → Project**).
-2. **Storage → Create Database → Blob** y conectarlo al proyecto. Esto agrega
-   `BLOB_READ_WRITE_TOKEN` automáticamente — no hay que copiarlo a mano.
+2. **Storage → Create Database → Blob** y conectarlo al proyecto. Vercel
+   agrega `BLOB_STORE_ID` (y `BLOB_WEBHOOK_PUBLIC_KEY`, que no usamos) a las
+   variables de entorno automáticamente. Ya no hace falta copiar ningún
+   token a mano: Vercel autentica cada request a Blob con un token OIDC de
+   corta duración que emite y rota solo — el SDK lo usa sin configuración
+   extra apenas detecta `BLOB_STORE_ID`.
 3. **Settings → Environment Variables** → agregar `ADMIN_PASSWORD` con la
    contraseña que va a usar el administrador.
 4. Deploy (o **Redeploy** si las variables se agregaron después del primer
@@ -175,6 +182,11 @@ datos que vienen del SAP:
   colisiones entre productos distintos). Se guarda igual porque es lo que
   trae el SAP, pero la URL de cada producto (`/producto/[id]`) se genera a
   partir de modelo+color, no de `BcdCode`.
+- **No hay filtro "sin imagen" en el catálogo público:** los productos sin
+  fotos reales ya quedan excluidos al importar (ver sección de arriba), así
+  que ese filtro no tendría nada que mostrar ahí. Esos casos se ven en el
+  resumen de `/admin` al momento de cargar el archivo, no en el catálogo
+  público.
 - **Tamaño de archivo:** las funciones de Vercel aceptan ~4.5 MB de cuerpo
   por request. El archivo real usado para probar esto (13.811 filas) pesa
   2.4 MB — hay margen, pero si el catálogo crece mucho más puede hacer falta
@@ -207,7 +219,13 @@ src/
 | Variable | Obligatoria | Quién la define |
 |---|---|---|
 | `ADMIN_PASSWORD` | Sí | vos, en Vercel → Settings → Environment Variables |
-| `BLOB_READ_WRITE_TOKEN` | Sí (en producción) | Vercel la genera sola al conectar Blob al proyecto |
+| `BLOB_STORE_ID` | Sí (en producción) | Vercel la genera sola al conectar Blob al proyecto |
+| `BLOB_WEBHOOK_PUBLIC_KEY` | No | Vercel la agrega junto con la anterior; este proyecto no usa webhooks de Blob, así que no se usa |
+
+> Vercel autentica los requests a Blob con un token OIDC de corta duración
+> que emite y rota automáticamente — no hay ningún `BLOB_READ_WRITE_TOKEN`
+> que copiar ni rotar a mano. `@vercel/blob` lo usa solo apenas encuentra
+> `BLOB_STORE_ID` en el entorno.
 
 ## Fuera de alcance (a propósito)
 

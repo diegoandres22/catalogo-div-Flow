@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { toast } from "sonner";
 import type { ResumenImportacion } from "@/lib/types";
 import { ResumenPrevio } from "./ResumenPrevio";
 
@@ -12,12 +13,10 @@ export function CargadorCatalogo() {
   const [url, setUrl] = useState("");
   const [estado, setEstado] = useState<Estado>("inicial");
   const [resumen, setResumen] = useState<ResumenImportacion | null>(null);
-  const [errorGeneral, setErrorGeneral] = useState<string | null>(null);
   const [nombreArchivo, setNombreArchivo] = useState<string | null>(null);
   const inputArchivoRef = useRef<HTMLInputElement>(null);
 
   async function subir(archivo: File | null) {
-    setErrorGeneral(null);
     setEstado("procesando");
 
     const formData = new FormData();
@@ -28,10 +27,12 @@ export function CargadorCatalogo() {
       formData.set("archivo", archivo);
       setNombreArchivo(archivo.name);
     } else {
-      setErrorGeneral("Seleccioná un archivo.");
+      toast.error("Seleccioná un archivo primero.");
       setEstado("inicial");
       return;
     }
+
+    const idCarga = toast.loading("Analizando archivo…");
 
     try {
       const resp = await fetch("/api/admin/upload", { method: "POST", body: formData });
@@ -41,8 +42,9 @@ export function CargadorCatalogo() {
         if (data.resumen) {
           setResumen(data.resumen as ResumenImportacion);
           setEstado("rechazado");
+          toast.error("Archivo rechazado — revisá el detalle.", { id: idCarga });
         } else {
-          setErrorGeneral(data.mensaje ?? "No se pudo procesar el archivo.");
+          toast.error(data.mensaje ?? "No se pudo procesar el archivo.", { id: idCarga });
           setEstado("inicial");
         }
         return;
@@ -50,26 +52,28 @@ export function CargadorCatalogo() {
 
       setResumen(data.resumen as ResumenImportacion);
       setEstado("previsualizando");
+      toast.success("Archivo analizado. Revisá el resumen antes de confirmar.", { id: idCarga });
     } catch {
-      setErrorGeneral("No se pudo conectar con el servidor.");
+      toast.error("No se pudo conectar con el servidor.", { id: idCarga });
       setEstado("inicial");
     }
   }
 
   async function confirmar() {
     setEstado("confirmando");
-    setErrorGeneral(null);
+    const idCarga = toast.loading("Reemplazando catálogo…");
     try {
       const resp = await fetch("/api/admin/confirm", { method: "POST" });
       const data = await resp.json();
       if (!resp.ok || !data.ok) {
-        setErrorGeneral(data.mensaje ?? "No se pudo confirmar el reemplazo.");
+        toast.error(data.mensaje ?? "No se pudo confirmar el reemplazo.", { id: idCarga });
         setEstado("previsualizando");
         return;
       }
+      toast.success("Catálogo reemplazado y publicado.", { id: idCarga });
       setEstado("confirmado");
     } catch {
-      setErrorGeneral("No se pudo conectar con el servidor.");
+      toast.error("No se pudo conectar con el servidor.", { id: idCarga });
       setEstado("previsualizando");
     }
   }
@@ -223,12 +227,6 @@ export function CargadorCatalogo() {
           </>
         )}
       </div>
-
-      {errorGeneral && (
-        <p role="alert" className="mt-4 rounded-lg bg-danger-100 px-3 py-2 text-sm text-danger-600">
-          {errorGeneral}
-        </p>
-      )}
 
       <button
         type="button"

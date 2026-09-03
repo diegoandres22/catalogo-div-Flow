@@ -9,6 +9,8 @@ export interface ValorFiltros {
   color: string;
   precioDesde: string;
   precioHasta: string;
+  tallas: string[];
+  soloDisponibles: boolean;
 }
 
 export const FILTROS_VACIOS: ValorFiltros = {
@@ -18,27 +20,39 @@ export const FILTROS_VACIOS: ValorFiltros = {
   color: "",
   precioDesde: "",
   precioHasta: "",
+  tallas: [],
+  soloDisponibles: false,
 };
 
 interface Props {
   marcas: string[];
   generos: string[];
   colores: string[];
+  tallas: string[];
   valor: ValorFiltros;
   onChange: (valor: ValorFiltros) => void;
 }
 
 function contarActivos(v: ValorFiltros): number {
-  return [v.marca, v.genero, v.color, v.precioDesde, v.precioHasta].filter(Boolean).length;
+  return (
+    [v.marca, v.genero, v.color, v.precioDesde, v.precioHasta].filter(Boolean).length +
+    (v.tallas.length > 0 ? 1 : 0) +
+    (v.soloDisponibles ? 1 : 0)
+  );
 }
 
-export function Filtros({ marcas, generos, colores, valor, onChange }: Props) {
+export function Filtros({ marcas, generos, colores, tallas, valor, onChange }: Props) {
   const [abierto, setAbierto] = useState(false);
   const idPanel = useId();
   const activos = contarActivos(valor);
 
   function set<K extends keyof ValorFiltros>(campo: K, v: ValorFiltros[K]) {
     onChange({ ...valor, [campo]: v });
+  }
+
+  function toggleTalla(t: string) {
+    const activa = valor.tallas.includes(t);
+    set("tallas", activa ? valor.tallas.filter((x) => x !== t) : [...valor.tallas, t]);
   }
 
   return (
@@ -140,6 +154,43 @@ export function Filtros({ marcas, generos, colores, valor, onChange }: Props) {
             />
           </div>
         </div>
+
+        {tallas.length > 0 && (
+          <div className="col-span-2 sm:col-span-4">
+            <span className="mb-1.5 block text-xs font-medium text-ink-500">Talla</span>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por talla">
+              {tallas.map((t) => {
+                const activa = valor.tallas.includes(t);
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    aria-pressed={activa}
+                    onClick={() => toggleTalla(t)}
+                    className={[
+                      "min-w-9 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors",
+                      activa
+                        ? "border-ink-900 bg-ink-900 text-white"
+                        : "border-ink-200 bg-paper-raised text-ink-900 hover:border-ink-900",
+                    ].join(" ")}
+                  >
+                    {t}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <label className="col-span-2 flex items-center gap-2 text-sm text-ink-900 sm:col-span-4">
+          <input
+            type="checkbox"
+            checked={valor.soloDisponibles}
+            onChange={(e) => set("soloDisponibles", e.target.checked)}
+            className="h-4 w-4 rounded border-ink-300 text-accent-600 focus:ring-accent-600"
+          />
+          Solo mostrar productos con stock disponible
+        </label>
       </div>
 
       {activos > 0 && (

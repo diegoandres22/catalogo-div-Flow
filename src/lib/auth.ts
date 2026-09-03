@@ -5,7 +5,7 @@
 // Se usa Web Crypto (crypto.subtle) en vez de `node:crypto` para que el mismo
 // código funcione tanto en middleware (Edge) como en route handlers (Node).
 
-const SIETE_DIAS_MS = 7 * 24 * 60 * 60 * 1000;
+const DURACION_SESION_MS = 12 * 60 * 60 * 1000; // 12 horas
 export const COOKIE_SESION = "admin_session";
 
 const encoder = new TextEncoder();
@@ -36,7 +36,7 @@ function compararConstante(a: string, b: string): boolean {
 export async function crearTokenSesion(): Promise<string> {
   const secreto = process.env.ADMIN_PASSWORD;
   if (!secreto) throw new Error("Falta configurar ADMIN_PASSWORD");
-  const expira = Date.now() + SIETE_DIAS_MS;
+  const expira = Date.now() + DURACION_SESION_MS;
   const payload = String(expira);
   const firma = await firmar(payload, secreto);
   return `${payload}.${firma}`;
@@ -63,4 +63,4 @@ export function validarPassword(intento: string): boolean {
   return compararConstante(intento, esperado);
 }
 
-export const MAX_AGE_COOKIE_SEGUNDOS = SIETE_DIAS_MS / 1000;
+export const MAX_AGE_COOKIE_SEGUNDOS = DURACION_SESION_MS / 1000;

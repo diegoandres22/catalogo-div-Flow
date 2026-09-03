@@ -5,6 +5,7 @@ import type { Producto } from "@/lib/types";
 import { Filtros, FILTROS_VACIOS, type ValorFiltros } from "./Filtros";
 import { ProductGrid } from "./ProductGrid";
 import { EstadoVacio } from "./EstadoVacio";
+import { tieneStock } from "@/lib/format";
 
 const POR_PAGINA = 100;
 
@@ -14,6 +15,10 @@ function unicosOrdenados(valores: (string | undefined)[]): string[] {
   );
 }
 
+function tallasOrdenadas(valores: string[]): string[] {
+  return Array.from(new Set(valores)).sort((a, b) => a.localeCompare(b, "es", { numeric: true }));
+}
+
 export function CatalogoClient({ productos }: { productos: Producto[] }) {
   const [filtros, setFiltros] = useState<ValorFiltros>(FILTROS_VACIOS);
   const [pagina, setPagina] = useState(1);
@@ -21,6 +26,10 @@ export function CatalogoClient({ productos }: { productos: Producto[] }) {
   const marcas = useMemo(() => unicosOrdenados(productos.map((p) => p.marca)), [productos]);
   const generos = useMemo(() => unicosOrdenados(productos.map((p) => p.genero)), [productos]);
   const colores = useMemo(() => unicosOrdenados(productos.map((p) => p.color)), [productos]);
+  const tallas = useMemo(
+    () => tallasOrdenadas(productos.flatMap((p) => p.tallas.map((t) => t.talla))),
+    [productos],
+  );
 
   const filtrados = useMemo(() => {
     const busqueda = filtros.busqueda.trim().toLowerCase();
@@ -34,6 +43,8 @@ export function CatalogoClient({ productos }: { productos: Producto[] }) {
       if (filtros.color && p.color !== filtros.color) return false;
       if (desde !== null && Number.isFinite(desde) && p.precio < desde) return false;
       if (hasta !== null && Number.isFinite(hasta) && p.precio > hasta) return false;
+      if (filtros.tallas.length > 0 && !p.tallas.some((t) => filtros.tallas.includes(t.talla))) return false;
+      if (filtros.soloDisponibles && !tieneStock(p.tallas)) return false;
       return true;
     });
   }, [productos, filtros]);
@@ -57,7 +68,14 @@ export function CatalogoClient({ productos }: { productos: Producto[] }) {
 
   return (
     <div className="flex flex-col gap-5">
-      <Filtros marcas={marcas} generos={generos} colores={colores} valor={filtros} onChange={cambiarFiltros} />
+      <Filtros
+        marcas={marcas}
+        generos={generos}
+        colores={colores}
+        tallas={tallas}
+        valor={filtros}
+        onChange={cambiarFiltros}
+      />
 
       <p className="text-xs text-ink-500" role="status">
         {filtrados.length} {filtrados.length === 1 ? "producto" : "productos"}

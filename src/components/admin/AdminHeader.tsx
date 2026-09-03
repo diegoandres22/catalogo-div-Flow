@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { toast } from "sonner";
 
 export function AdminHeader() {
   const router = useRouter();
@@ -9,9 +10,14 @@ export function AdminHeader() {
 
   async function salir() {
     setSaliendo(true);
-    await fetch("/api/admin/logout", { method: "POST" });
-    router.push("/admin/login");
-    router.refresh();
+    try {
+      await fetch("/api/admin/logout", { method: "POST" });
+      router.push("/admin/login");
+      router.refresh();
+    } catch {
+      toast.error("No se pudo cerrar sesión. Probá de nuevo.");
+      setSaliendo(false);
+    }
   }
 
   return (

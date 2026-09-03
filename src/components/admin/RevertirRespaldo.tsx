@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 
 export function RevertirRespaldo() {
   const [estado, setEstado] = useState<"inicial" | "cargando" | "hecho">("inicial");
-  const [mensaje, setMensaje] = useState<string | null>(null);
 
   async function revertir() {
     const confirmado = window.confirm(
@@ -13,19 +13,19 @@ export function RevertirRespaldo() {
     if (!confirmado) return;
 
     setEstado("cargando");
-    setMensaje(null);
+    const idCarga = toast.loading("Revirtiendo al respaldo…");
     try {
       const resp = await fetch("/api/admin/revert", { method: "POST" });
       const data = await resp.json();
       if (!resp.ok || !data.ok) {
-        setMensaje(data.mensaje ?? "No se pudo revertir al respaldo.");
+        toast.error(data.mensaje ?? "No se pudo revertir al respaldo.", { id: idCarga });
         setEstado("inicial");
         return;
       }
-      setMensaje(`Revertido: ${data.totalProductos} productos publicados de nuevo.`);
+      toast.success(`Revertido: ${data.totalProductos} productos publicados de nuevo.`, { id: idCarga });
       setEstado("hecho");
     } catch {
-      setMensaje("No se pudo conectar con el servidor.");
+      toast.error("No se pudo conectar con el servidor.", { id: idCarga });
       setEstado("inicial");
     }
   }
@@ -43,7 +43,6 @@ export function RevertirRespaldo() {
       >
         {estado === "cargando" ? "Revirtiendo…" : "Revertir al respaldo anterior"}
       </button>
-      {mensaje && <p className="mt-2 text-xs text-ink-700">{mensaje}</p>}
     </div>
   );
 }

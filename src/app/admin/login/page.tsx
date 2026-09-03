@@ -2,17 +2,16 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 export default function PaginaLoginAdmin() {
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [cargando, setCargando] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setCargando(true);
-    setError(null);
     try {
       const resp = await fetch("/api/admin/login", {
         method: "POST",
@@ -21,14 +20,15 @@ export default function PaginaLoginAdmin() {
       });
       const data = await resp.json();
       if (!resp.ok || !data.ok) {
-        setError(data.mensaje ?? "No se pudo iniciar sesión.");
+        toast.error(data.mensaje ?? "No se pudo iniciar sesión.");
         setCargando(false);
         return;
       }
+      toast.success("Sesión iniciada");
       router.push("/admin");
       router.refresh();
     } catch {
-      setError("No se pudo conectar con el servidor.");
+      toast.error("No se pudo conectar con el servidor.");
       setCargando(false);
     }
   }
@@ -54,12 +54,6 @@ export default function PaginaLoginAdmin() {
           onChange={(e) => setPassword(e.target.value)}
           className="w-full rounded-lg border border-ink-200 px-3 py-2.5 text-sm text-ink-900 focus:border-accent-600"
         />
-
-        {error && (
-          <p role="alert" className="mt-3 rounded-lg bg-danger-100 px-3 py-2 text-sm text-danger-600">
-            {error}
-          </p>
-        )}
 
         <button
           type="submit"

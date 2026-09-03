@@ -1,6 +1,11 @@
 import Link from "next/link";
+import Image from "next/image";
 
-const MARCAS = ["Volpe", "Vita Kids", "Kriza"];
+const MARCAS = [
+  { nombre: "Volpe", src: "/marcas/volpe.png", ancho: 783, alto: 161 },
+  { nombre: "Vita Kids", src: "/marcas/vitakids.png", ancho: 976, alto: 346 },
+  { nombre: "Kriza", src: "/marcas/kriza.svg", ancho: 1001, alto: 275 },
+];
 
 export function Footer() {
   const anio = new Date().getFullYear();
@@ -18,11 +23,18 @@ export function Footer() {
 
         <div>
           <h2 className="text-sm font-semibold text-ink-900">Nuestras marcas</h2>
-          <ul className="mt-2 space-y-1 text-sm text-ink-500">
+          <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-3">
             {MARCAS.map((marca) => (
-              <li key={marca}>{marca}</li>
+              <Image
+                key={marca.nombre}
+                src={marca.src}
+                alt={marca.nombre}
+                width={marca.ancho}
+                height={marca.alto}
+                className="h-7 w-auto object-contain"
+              />
             ))}
-          </ul>
+          </div>
         </div>
 
         <div>
