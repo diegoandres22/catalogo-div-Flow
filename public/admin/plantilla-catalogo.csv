@@ -1,0 +1,4 @@
+Nombre modelo,Marca,U_PX_Genero,Color,Talla,Price,Disponible,BcdCode,Todas las fotos y guia de tallas,Materiales del exterior,Materiales del interior,Materiales de la suela,Tipo de calzado
+Bota Urbana 220,Volpe,Dama,Negro,37,24.90,8,VLP-220-NEG-37,"https://cdn.ejemplo.com/volpe/220-negro-1.jpg, https://cdn.ejemplo.com/volpe/220-negro-2.jpg, https://cdn.ejemplo.com/volpe/guiaTallasMesvol.jpg",Cuero sintético,Textil,Goma,Bota
+Bota Urbana 220,Volpe,Dama,Negro,38,24.90,0,VLP-220-NEG-38,"https://cdn.ejemplo.com/volpe/220-negro-1.jpg, https://cdn.ejemplo.com/volpe/220-negro-2.jpg, https://cdn.ejemplo.com/volpe/guiaTallasMesvol.jpg",Cuero sintético,Textil,Goma,Bota
+Bota Urbana 220,Volpe,Dama,Marrón,38,24.90,5,VLP-220-MAR-38,"https://cdn.ejemplo.com/volpe/220-marron-1.jpg, https://cdn.ejemplo.com/volpe/guiaTallasMesvol.jpg",Cuero sintético,Textil,Goma,Bota

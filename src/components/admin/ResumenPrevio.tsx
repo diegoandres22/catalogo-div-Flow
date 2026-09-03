@@ -1,4 +1,5 @@
 import type { ResumenImportacion } from "@/lib/types";
+import { TablaErrores } from "./TablaErrores";
 
 interface Props {
   resumen: ResumenImportacion;
@@ -20,29 +21,10 @@ export function ResumenPrevio({ resumen, onConfirmar, onCancelar, confirmando }:
 
       {resumen.errores.length > 0 && (
         <div className="mt-5">
-          <h3 className="mb-2 text-sm font-medium text-ink-900">Detalle de errores</h3>
-          <div className="max-h-56 overflow-y-auto rounded-lg border border-ink-200">
-            <table className="w-full text-left text-xs">
-              <thead className="sticky top-0 bg-ink-100 text-ink-500">
-                <tr>
-                  <th className="px-3 py-2 font-medium">Fila</th>
-                  <th className="px-3 py-2 font-medium">Modelo / Color</th>
-                  <th className="px-3 py-2 font-medium">Motivo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {resumen.errores.map((e, i) => (
-                  <tr key={i} className="border-t border-ink-200">
-                    <td className="px-3 py-2 text-ink-500">{e.fila ?? "—"}</td>
-                    <td className="px-3 py-2 text-ink-900">
-                      {[e.modelo, e.color].filter(Boolean).join(" / ") || "—"}
-                    </td>
-                    <td className="px-3 py-2 text-ink-700">{e.motivo}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <h3 className="mb-2 text-sm font-medium text-ink-900">
+            Filas excluidas del catálogo <span className="font-normal text-ink-500">(el resto se importó igual)</span>
+          </h3>
+          <TablaErrores errores={resumen.errores} />
         </div>
       )}
 
