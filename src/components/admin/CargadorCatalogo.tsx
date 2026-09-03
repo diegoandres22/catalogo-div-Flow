@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { upload } from "@vercel/blob/client";
 import { toast } from "sonner";
 import type { ResumenImportacion } from "@/lib/types";
+import { logError, pistaBlob } from "@/lib/logger";
 import { ResumenPrevio } from "./ResumenPrevio";
 import { GuiaColumnas } from "./GuiaColumnas";
 import { TablaErrores } from "./TablaErrores";
@@ -26,7 +27,15 @@ function extensionValida(nombre: string, origen: "csv" | "xlsx"): boolean {
   return EXTENSIONES[origen].some((ext) => nombreLower.endsWith(ext));
 }
 
-export function CargadorCatalogo() {
+interface Props {
+  // true mientras otra operación crítica (revertir al respaldo) está en
+  // curso — bloquea "Reemplazar catálogo" para que las dos no escriban
+  // catalogo.json al mismo tiempo (ver PanelAdmin.tsx).
+  bloqueadoPorOtraOperacion?: boolean;
+  onOperacionCriticaChange?: (enCurso: boolean) => void;
+}
+
+export function CargadorCatalogo({ bloqueadoPorOtraOperacion, onOperacionCriticaChange }: Props) {
   const [origen, setOrigen] = useState<Origen>("xlsx");
   const [url, setUrl] = useState("");
   const [estado, setEstado] = useState<Estado>("inicial");
@@ -76,11 +85,21 @@ export function CargadorCatalogo() {
         setNombreArchivo(archivo.name);
         // Sube directo del navegador a Vercel Blob — evita el límite de
         // tamaño de body de la función serverless, así que soporta archivos
-        // grandes sin problema. multipart trocea la subida automáticamente.
+        // grandes sin problema, incluso sin multipart (multipart solo trocea
+        // la subida, no es lo que evita el límite de 4.5 MB).
+        //
+        // multipart: false a propósito — con multipart:true, las llamadas de
+        // coordinación van a vercel.com/api/blob/mpu, y en este proyecto ese
+        // endpoint específico está devolviendo respuestas sin cabecera CORS
+        // (bug reportado del lado de Vercel, no de este código). El SDK
+        // reintenta hasta 10 veces por llamada con backoff exponencial, por
+        // eso se quedaba "Subiendo…" colgado varios minutos antes de fallar.
+        // La subida sin multipart no pasa por ese endpoint y funciona bien
+        // para archivos de este tamaño (una planilla de Excel).
         const blob = await upload(`admin-uploads/${Date.now()}-${archivo.name}`, archivo, {
           access: "public",
           handleUploadUrl: "/api/admin/upload-token",
-          multipart: true,
+          multipart: false,
         });
         toast.loading("Analizando archivo…", { id: idCarga });
         respBody = { tipo: origen, blobUrl: blob.url };
@@ -114,6 +133,7 @@ export function CargadorCatalogo() {
       toast.success("Archivo analizado. Revisá el resumen antes de confirmar.", { id: idCarga });
     } catch (err) {
       const mensaje = err instanceof Error ? err.message : "No se pudo subir o procesar el archivo.";
+      logError("CargadorCatalogo.subir", err, pistaBlob(mensaje));
       toast.error(mensaje, { id: idCarga });
       setEstado("inicial");
     }
@@ -121,6 +141,7 @@ export function CargadorCatalogo() {
 
   async function confirmar() {
     setEstado("confirmando");
+    onOperacionCriticaChange?.(true);
     const idCarga = toast.loading("Reemplazando catálogo…");
     try {
       const resp = await fetch("/api/admin/confirm", { method: "POST" });
@@ -132,9 +153,12 @@ export function CargadorCatalogo() {
       }
       toast.success("Catálogo reemplazado y publicado.", { id: idCarga });
       setEstado("confirmado");
-    } catch {
+    } catch (err) {
+      logError("CargadorCatalogo.confirmar", err, "No se pudo llegar al servidor — revisá tu conexión a internet y probá de nuevo.");
       toast.error("No se pudo conectar con el servidor.", { id: idCarga });
       setEstado("previsualizando");
+    } finally {
+      onOperacionCriticaChange?.(false);
     }
   }
 
@@ -173,7 +197,13 @@ export function CargadorCatalogo() {
 
   if ((estado === "previsualizando" || estado === "confirmando") && resumen) {
     return (
-      <ResumenPrevio resumen={resumen} onConfirmar={confirmar} onCancelar={cancelar} confirmando={estado === "confirmando"} />
+      <ResumenPrevio
+        resumen={resumen}
+        onConfirmar={confirmar}
+        onCancelar={cancelar}
+        confirmando={estado === "confirmando"}
+        bloqueadoPorOtraOperacion={bloqueadoPorOtraOperacion}
+      />
     );
   }
 
