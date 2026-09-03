@@ -6,12 +6,23 @@ import { toast } from "sonner";
 export function RevertirRespaldo() {
   const [estado, setEstado] = useState<"inicial" | "cargando" | "hecho">("inicial");
 
-  async function revertir() {
-    const confirmado = window.confirm(
-      "Esto reemplaza el catálogo publicado por la versión anterior guardada como respaldo. ¿Continuar?",
-    );
-    if (!confirmado) return;
+  function pedirConfirmacion() {
+    toast("¿Revertir al respaldo anterior?", {
+      description: "Esto reemplaza el catálogo publicado por la versión anterior guardada como respaldo.",
+      duration: 12000,
+      action: {
+        label: "Revertir",
+        onClick: () => revertir(),
+      },
+      actionButtonStyle: { background: "var(--color-danger-600)", color: "#fff" },
+      cancel: {
+        label: "Cancelar",
+        onClick: () => {},
+      },
+    });
+  }
 
+  async function revertir() {
     setEstado("cargando");
     const idCarga = toast.loading("Revirtiendo al respaldo…");
     try {
@@ -37,7 +48,7 @@ export function RevertirRespaldo() {
       </p>
       <button
         type="button"
-        onClick={revertir}
+        onClick={pedirConfirmacion}
         disabled={estado === "cargando"}
         className="mt-2 text-sm font-medium text-accent-700 underline-offset-2 hover:underline disabled:opacity-50"
       >
