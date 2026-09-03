@@ -1,4 +1,5 @@
 import { Header } from "@/components/ui/Header";
+import { Footer } from "@/components/ui/Footer";
 
 export default function CargandoProducto() {
   return (
@@ -22,6 +23,7 @@ export default function CargandoProducto() {
           </div>
         </div>
       </main>
+      <Footer />
     </>
   );
 }

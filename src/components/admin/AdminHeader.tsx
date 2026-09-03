@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { logError } from "@/lib/logger";
 
 export function AdminHeader() {
   const router = useRouter();
@@ -14,7 +15,8 @@ export function AdminHeader() {
       await fetch("/api/admin/logout", { method: "POST" });
       router.push("/admin/login");
       router.refresh();
-    } catch {
+    } catch (err) {
+      logError("AdminHeader.salir", err, "No se pudo llegar al servidor para cerrar sesión — revisá tu conexión a internet y probá de nuevo.");
       toast.error("No se pudo cerrar sesión. Probá de nuevo.");
       setSaliendo(false);
     }

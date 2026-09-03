@@ -4,10 +4,11 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { Header } from "@/components/ui/Header";
 import { Footer } from "@/components/ui/Footer";
+import { logError } from "@/lib/logger";
 
 export default function ErrorGlobal({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
-    console.error(error);
+    logError("error.tsx (límite de error de la página)", error);
   }, [error]);
 
   return (

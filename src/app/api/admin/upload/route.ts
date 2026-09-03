@@ -1,51 +1,49 @@
-import { del } from "@vercel/blob";
 import { NextRequest, NextResponse } from "next/server";
 import { guardarCatalogoPendiente } from "@/lib/blob";
 import { obtenerCSVDesdeURL, parsearCSV, parsearXLSX, type ArchivoParseado } from "@/lib/parseOrigen";
 import { transformarFilas, validarColumnas } from "@/lib/transform";
 import type { ResumenImportacion } from "@/lib/types";
+import { logError, pistaBlob } from "@/lib/logger";
 
+// El archivo llega directo en el body del pedido (multipart/form-data) — pasa
+// por esta función serverless, así que está sujeto al límite de tamaño de
+// body de Vercel (4.5 MB). Antes se subía directo del navegador a Vercel
+// Blob para evitar ese límite, pero ese camino (vercel.com/api/blob) está
+// devolviendo respuestas sin cabecera CORS en este proyecto — un problema
+// del lado de Vercel, no de este código — así que se volvió a este camino
+// más simple mientras eso no se resuelva. Un archivo de precios de Excel
+// entra sin problema en 4.5 MB.
 export async function POST(request: NextRequest) {
-  // Se borra al final, tanto si el import sale bien como si sale mal — es un
-  // archivo de paso, no hace falta conservarlo en Blob.
-  let blobUrlTemporal: string | null = null;
-
   try {
-    const body = await request.json();
-    const tipo = String(body.tipo ?? "");
+    const formData = await request.formData();
+    const tipo = String(formData.get("tipo") ?? "");
 
     let parseado: ArchivoParseado;
 
     if (tipo === "csv" || tipo === "xlsx") {
-      // El archivo ya se subió directo del navegador a Vercel Blob (ver
-      // CargadorCatalogo.tsx + /api/admin/upload-token) — acá solo se lee su
-      // contenido. Así se evita el límite de tamaño de body de las funciones
-      // serverless (~4.5 MB) y se pueden aceptar archivos grandes.
-      const blobUrl = String(body.blobUrl ?? "").trim();
-      if (!blobUrl) {
-        return NextResponse.json({ ok: false, mensaje: "Falta el archivo subido." }, { status: 400 });
+      const archivo = formData.get("archivo");
+      if (!(archivo instanceof File)) {
+        logError("api/admin/upload", "El pedido llegó sin archivo adjunto en el campo 'archivo'.");
+        return NextResponse.json({ ok: false, mensaje: "Falta el archivo." }, { status: 400 });
       }
-      blobUrlTemporal = blobUrl;
-      const respuestaArchivo = await fetch(blobUrl);
-      if (!respuestaArchivo.ok) {
-        return NextResponse.json(
-          { ok: false, mensaje: `No se pudo leer el archivo subido (HTTP ${respuestaArchivo.status}).` },
-          { status: 502 },
-        );
-      }
-      parseado =
-        tipo === "csv" ? parsearCSV(await respuestaArchivo.text()) : parsearXLSX(await respuestaArchivo.arrayBuffer());
+      parseado = tipo === "csv" ? parsearCSV(await archivo.text()) : parsearXLSX(await archivo.arrayBuffer());
     } else if (tipo === "sheet") {
-      const url = String(body.url ?? "").trim();
+      const url = String(formData.get("url") ?? "").trim();
       if (!url) {
         return NextResponse.json({ ok: false, mensaje: "Falta el link de Google Sheets." }, { status: 400 });
       }
       parseado = await obtenerCSVDesdeURL(url);
     } else {
+      logError("api/admin/upload", `Tipo de origen inválido: "${tipo}" (se esperaba "csv", "xlsx" o "sheet").`);
       return NextResponse.json({ ok: false, mensaje: "Origen de datos inválido." }, { status: 400 });
     }
 
     if (parseado.filas.length === 0) {
+      logError(
+        "api/admin/upload",
+        "El archivo se leyó bien pero no tiene ninguna fila de datos.",
+        "Revisá que el archivo no esté vacío y que la primera fila tenga los encabezados de columna (no datos ya corridos).",
+      );
       const resumen: ResumenImportacion = {
         ok: false,
         totalFilasOrigen: 0,
@@ -59,6 +57,11 @@ export async function POST(request: NextRequest) {
 
     const columnasFaltantes = validarColumnas(parseado.encabezados);
     if (columnasFaltantes.length > 0) {
+      logError(
+        "api/admin/upload",
+        `Faltan columnas obligatorias: ${columnasFaltantes.join(", ")}. Encabezados encontrados: ${parseado.encabezados.join(", ")}.`,
+        "Revisá que el encabezado del archivo tenga exactamente esos nombres de columna (mayúsculas/minúsculas y guiones bajos incluidos, sin espacios de más).",
+      );
       const resumen: ResumenImportacion = {
         ok: false,
         totalFilasOrigen: parseado.filas.length,
@@ -74,6 +77,11 @@ export async function POST(request: NextRequest) {
     const { catalogo, resumen } = transformarFilas(parseado.filas, parseado.filas.length);
 
     if (!catalogo) {
+      logError(
+        "api/admin/upload",
+        `El archivo se procesó pero ningún producto pasó las validaciones (${resumen.errores.length} fila(s) con error).`,
+        "Mirá el detalle de 'errores' en la respuesta — cada uno dice el motivo puntual por fila.",
+      );
       return NextResponse.json({ ok: false, resumen }, { status: 422 });
     }
 
@@ -84,12 +92,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, resumen });
   } catch (err) {
     const mensaje = err instanceof Error ? err.message : "Error inesperado al procesar el archivo.";
-    return NextResponse.json({ ok: false, mensaje }, { status: 500 });
-  } finally {
-    if (blobUrlTemporal) {
-      del(blobUrlTemporal).catch(() => {
-        // no crítico: si falla la limpieza, el archivo temporal queda huérfano en Blob
-      });
-    }
+    logError("api/admin/upload", err, pistaBlob(mensaje));
+
+    // El body de una función serverless de Vercel no puede superar ~4.5 MB —
+    // Next.js corta la conexión y esto suele llegar acá como un error de
+    // parseo del body en vez de un mensaje claro.
+    const pista = /body|payload|exceeds|too large/i.test(mensaje)
+      ? " El archivo probablemente pesa más de 4.5 MB (el límite de las funciones serverless de Vercel) — probá con un archivo más liviano."
+      : "";
+
+    return NextResponse.json({ ok: false, mensaje: mensaje + pista }, { status: 500 });
   }
 }

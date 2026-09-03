@@ -1,5 +1,6 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { NextResponse } from "next/server";
+import { logError, pistaBlob } from "@/lib/logger";
 
 // Autoriza la subida del archivo de catálogo (CSV/XLSX/XLSM) directo desde
 // el navegador a Vercel Blob, sin pasar por el límite de tamaño de body de
@@ -37,6 +38,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json(jsonResponse);
   } catch (err) {
     const mensaje = err instanceof Error ? err.message : "No se pudo autorizar la subida del archivo.";
+    logError("api/admin/upload-token", err, pistaBlob(mensaje));
     return NextResponse.json({ error: mensaje }, { status: 400 });
   }
 }

@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { logError } from "@/lib/logger";
 
 export default function PaginaLoginAdmin() {
   const router = useRouter();
@@ -27,7 +28,8 @@ export default function PaginaLoginAdmin() {
       toast.success("Sesión iniciada");
       router.push("/admin");
       router.refresh();
-    } catch {
+    } catch (err) {
+      logError("PaginaLoginAdmin.onSubmit", err, "No se pudo llegar al servidor — revisá tu conexión a internet y probá de nuevo.");
       toast.error("No se pudo conectar con el servidor.");
       setCargando(false);
     }
@@ -40,7 +42,7 @@ export default function PaginaLoginAdmin() {
         className="w-full max-w-sm rounded-2xl border border-ink-200 bg-paper-raised p-6 shadow-sm sm:p-8"
       >
         <h1 className="text-lg font-semibold text-ink-900">Panel de administración</h1>
-        <p className="mt-1 text-sm text-ink-500">Ingresá la contraseña.</p>
+        <p className="mt-1 text-sm text-ink-500">Ingresá la contraseña para cargar el catálogo.</p>
 
         <label htmlFor="password" className="mt-6 mb-1.5 block text-sm font-medium text-ink-900">
           Contraseña

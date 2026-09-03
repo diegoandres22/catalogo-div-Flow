@@ -8,6 +8,7 @@
 
 import { del, get, put } from "@vercel/blob";
 import type { Catalogo } from "./types";
+import { logError, pistaBlob } from "./logger";
 
 const CATALOGO_KEY = "catalogo.json";
 const BACKUP_KEY = "catalogo-backup.json";
@@ -19,19 +20,31 @@ async function leerJson<T>(key: string): Promise<T | null> {
     if (!resultado || resultado.statusCode !== 200) return null;
     const texto = await new Response(resultado.stream).text();
     return JSON.parse(texto) as T;
-  } catch {
-    // BlobNotFoundError u otros -> tratamos como "no existe todavía"
+  } catch (err) {
+    const mensaje = err instanceof Error ? err.message : String(err);
+    // BlobNotFoundError es normal (todavía no existe ese archivo en Blob) —
+    // cualquier otro error sí se registra, porque puede estar tapando un
+    // problema real de configuración (por ejemplo, credenciales).
+    if (!/BlobNotFoundError|not_found/i.test(mensaje)) {
+      logError(`lib/blob.leerJson(${key})`, err, pistaBlob(mensaje));
+    }
     return null;
   }
 }
 
 async function escribirJson(key: string, data: unknown): Promise<void> {
-  await put(key, JSON.stringify(data), {
-    access: "private",
-    addRandomSuffix: false,
-    allowOverwrite: true,
-    contentType: "application/json",
-  });
+  try {
+    await put(key, JSON.stringify(data), {
+      access: "private",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      contentType: "application/json",
+    });
+  } catch (err) {
+    const mensaje = err instanceof Error ? err.message : String(err);
+    logError(`lib/blob.escribirJson(${key})`, err, pistaBlob(mensaje));
+    throw err;
+  }
 }
 
 export async function leerCatalogoPublico(): Promise<Catalogo | null> {
@@ -67,8 +80,13 @@ export async function confirmarReemplazoCatalogo(): Promise<Catalogo> {
 
   try {
     await del(PENDING_KEY);
-  } catch {
+  } catch (err) {
     // no crítico: si falla la limpieza del pendiente, el catálogo ya quedó reemplazado
+    logError(
+      "lib/blob.confirmarReemplazoCatalogo (limpieza)",
+      err,
+      "No se pudo borrar catalogo-pending.json después de confirmar — no afecta el catálogo publicado, pero conviene borrarlo a mano desde Vercel → Storage.",
+    );
   }
 
   return pendiente;

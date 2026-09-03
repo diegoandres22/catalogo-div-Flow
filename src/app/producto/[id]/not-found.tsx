@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Header } from "@/components/ui/Header";
+import { Footer } from "@/components/ui/Footer";
 import { EstadoVacio } from "@/components/catalogo/EstadoVacio";
 
 export default function ProductoNoEncontrado() {
@@ -20,6 +21,7 @@ export default function ProductoNoEncontrado() {
           }
         />
       </main>
+      <Footer />
     </>
   );
 }
