@@ -49,7 +49,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <CarritoDrawer />
         </CarritoProvider>
         <Toaster
-          position="top-center"
+          position="bottom-center"
           richColors
           closeButton
           toastOptions={{
