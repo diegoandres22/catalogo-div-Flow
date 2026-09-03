@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Toaster } from "sonner";
 import "./globals.css";
 
@@ -6,12 +6,36 @@ import "./globals.css";
 // requests externos y excelente legibilidad en todas las plataformas — clave
 // para el caso de uso principal (link abierto desde WhatsApp en el celular).
 
+const DESCRIPCION = "Catálogo digital de venta al mayor — Volpe, Vita Kids y Kriza.";
+
 export const metadata: Metadata = {
+  metadataBase: new URL("https://catalogomesvol.vercel.app"),
   title: {
     default: "Catálogo Mayorista",
     template: "%s · Catálogo Mayorista",
   },
-  description: "Catálogo digital de venta al mayor.",
+  description: DESCRIPCION,
+  applicationName: "Catálogo Mayorista",
+  appleWebApp: {
+    title: "Cat. Mayorista",
+    statusBarStyle: "default",
+  },
+  openGraph: {
+    title: "Catálogo Mayorista",
+    description: DESCRIPCION,
+    siteName: "Catálogo Mayorista — Calzados Mesvol, C.A.",
+    locale: "es_VE",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Catálogo Mayorista",
+    description: DESCRIPCION,
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#ffffff",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
