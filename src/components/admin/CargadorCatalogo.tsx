@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { upload } from "@vercel/blob/client";
 import { toast } from "sonner";
 import type { ResumenImportacion } from "@/lib/types";
 import { ResumenPrevio } from "./ResumenPrevio";
@@ -10,10 +11,14 @@ import { TablaErrores } from "./TablaErrores";
 type Origen = "csv" | "xlsx" | "sheet";
 type Estado = "inicial" | "procesando" | "previsualizando" | "confirmando" | "confirmado" | "rechazado";
 
-const TAMANO_MAXIMO_BYTES = 4.4 * 1024 * 1024; // margen bajo el límite de ~4.5 MB de Vercel
+// El archivo se sube directo del navegador a Vercel Blob (no pasa por
+// nuestra función serverless), así que esto es solo una salvaguarda
+// razonable, no una restricción técnica real — 250 MB es muchísimo más de
+// lo que pesa una planilla de Excel, incluso con macros o miles de filas.
+const TAMANO_MAXIMO_BYTES = 250 * 1024 * 1024;
 const EXTENSIONES: Record<"csv" | "xlsx", string[]> = {
   csv: [".csv"],
-  xlsx: [".xlsx", ".xls"],
+  xlsx: [".xlsx", ".xls", ".xlsm"],
 };
 
 function extensionValida(nombre: string, origen: "csv" | "xlsx"): boolean {
@@ -52,7 +57,7 @@ export function CargadorCatalogo() {
       }
       if (archivo.size > TAMANO_MAXIMO_BYTES) {
         toast.error(
-          `El archivo pesa ${(archivo.size / (1024 * 1024)).toFixed(1)} MB — el límite es ~4.4 MB. Exportá un archivo más chico o dividilo.`,
+          `El archivo pesa ${(archivo.size / (1024 * 1024)).toFixed(1)} MB — el límite es ${TAMANO_MAXIMO_BYTES / (1024 * 1024)} MB.`,
         );
         return;
       }
@@ -60,19 +65,36 @@ export function CargadorCatalogo() {
 
     setEstado("procesando");
 
-    const formData = new FormData();
-    formData.set("tipo", origen);
-    if (origen === "sheet") {
-      formData.set("url", url.trim());
-    } else if (archivo) {
-      formData.set("archivo", archivo);
-      setNombreArchivo(archivo.name);
-    }
-
-    const idCarga = toast.loading("Analizando archivo…");
+    const idCarga = toast.loading(origen === "sheet" ? "Analizando archivo…" : "Subiendo archivo…");
 
     try {
-      const resp = await fetch("/api/admin/upload", { method: "POST", body: formData });
+      let respBody: { tipo: Origen; url?: string; blobUrl?: string };
+
+      if (origen === "sheet") {
+        respBody = { tipo: "sheet", url: url.trim() };
+      } else if (archivo) {
+        setNombreArchivo(archivo.name);
+        // Sube directo del navegador a Vercel Blob — evita el límite de
+        // tamaño de body de la función serverless, así que soporta archivos
+        // grandes sin problema. multipart trocea la subida automáticamente.
+        const blob = await upload(`admin-uploads/${Date.now()}-${archivo.name}`, archivo, {
+          access: "public",
+          handleUploadUrl: "/api/admin/upload-token",
+          multipart: true,
+        });
+        toast.loading("Analizando archivo…", { id: idCarga });
+        respBody = { tipo: origen, blobUrl: blob.url };
+      } else {
+        toast.error("Seleccioná un archivo primero.", { id: idCarga });
+        setEstado("inicial");
+        return;
+      }
+
+      const resp = await fetch("/api/admin/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(respBody),
+      });
       const data = await resp.json();
 
       if (!resp.ok) {
@@ -90,8 +112,9 @@ export function CargadorCatalogo() {
       setResumen(data.resumen as ResumenImportacion);
       setEstado("previsualizando");
       toast.success("Archivo analizado. Revisá el resumen antes de confirmar.", { id: idCarga });
-    } catch {
-      toast.error("No se pudo conectar con el servidor.", { id: idCarga });
+    } catch (err) {
+      const mensaje = err instanceof Error ? err.message : "No se pudo subir o procesar el archivo.";
+      toast.error(mensaje, { id: idCarga });
       setEstado("inicial");
     }
   }
@@ -267,18 +290,21 @@ export function CargadorCatalogo() {
           ) : (
             <>
               <label htmlFor="archivo" className="mb-1.5 block text-sm font-medium text-ink-900">
-                Archivo {origen === "xlsx" ? "XLSX" : "CSV"}
+                Archivo {origen === "xlsx" ? "Excel (.xlsx, .xls o .xlsm)" : "CSV"}
               </label>
               <input
                 id="archivo"
                 ref={inputArchivoRef}
                 type="file"
-                accept={origen === "xlsx" ? ".xlsx,.xls" : ".csv"}
+                accept={origen === "xlsx" ? ".xlsx,.xls,.xlsm" : ".csv"}
                 onChange={(e) => setNombreArchivo(e.target.files?.[0]?.name ?? null)}
                 className="block w-full text-sm text-ink-700 file:mr-3 file:rounded-full file:border-0 file:bg-ink-100 file:px-3.5 file:py-2 file:text-sm file:font-medium file:text-ink-900 hover:file:bg-ink-200"
               />
               {nombreArchivo && <p className="mt-1.5 text-xs text-ink-500">Seleccionado: {nombreArchivo}</p>}
-              <p className="mt-1.5 text-xs text-ink-500">Tamaño máximo ~4.4 MB. Una fila por talla+color.</p>
+              <p className="mt-1.5 text-xs text-ink-500">
+                Se sube directo a almacenamiento en la nube, sin límite práctico de tamaño — incluye archivos
+                grandes o con macros (.xlsm) sin problema.
+              </p>
             </>
           )}
         </div>

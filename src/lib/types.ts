@@ -1,9 +1,13 @@
-// Tipos del dominio del catálogo. Ver PROMPT original para la estructura exacta requerida.
+// Tipos del dominio del catálogo. Fuente real: export crudo de SAP (hoja
+// "OITM"), una fila por Modelo+Color+Rango de tallas — ver transform.ts.
 
 export interface TallaVariante {
   talla: string;
   disponible: number;
-  bcdCode: string;
+  // Cuántos pares de esta talla exacta vienen en un bulto — viene de la
+  // columna "Curva" del SAP (ej. "1-2-3-3-2-1" repartido sobre "Serie"
+  // "35-40"). No aplica a productos sin curva de tallas (accesorios).
+  porBulto?: number;
 }
 
 export interface Materiales {
@@ -19,9 +23,13 @@ export interface Producto {
   marca: string;
   genero: string;
   color: string;
+  rubro: string; // "CALZADO" | "ACCESORIOS" | lo que traiga U_PX_Rubro
+  linea?: string; // U_PX_Linea — categoría/estilo (ej. "CASUAL SPORT", "LADIES")
   precio: number;
-  // TODO: reemplazar por columna real del SAP cuando se defina.
-  // Por ahora todos los productos se venden en bultos de 12 pares.
+  promocion: boolean;
+  codigoSap: string; // ItemCode representativo del producto (SAP)
+  // Suma de la curva de tallas (pares por bulto). 1 para productos sin curva
+  // (accesorios: se venden por unidad, no por bulto).
   cantidadPorBulto: number;
   fotos: string[];
   guiaTallas: string[];

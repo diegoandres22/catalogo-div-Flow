@@ -34,6 +34,8 @@ export function CatalogoClient({ productos }: { productos: Producto[] }) {
   const marcas = useMemo(() => unicosOrdenados(productos.map((p) => p.marca)), [productos]);
   const generos = useMemo(() => unicosOrdenados(productos.map((p) => p.genero)), [productos]);
   const colores = useMemo(() => unicosOrdenados(productos.map((p) => p.color)), [productos]);
+  const categorias = useMemo(() => unicosOrdenados(productos.map((p) => p.rubro)), [productos]);
+  const lineas = useMemo(() => unicosOrdenados(productos.map((p) => p.linea)), [productos]);
   const tallas = useMemo(
     () => tallasOrdenadas(productos.flatMap((p) => p.tallas.map((t) => t.talla))),
     [productos],
@@ -49,6 +51,8 @@ export function CatalogoClient({ productos }: { productos: Producto[] }) {
       if (filtros.marca && p.marca !== filtros.marca) return false;
       if (filtros.genero && p.genero !== filtros.genero) return false;
       if (filtros.color && p.color !== filtros.color) return false;
+      if (filtros.categoria && p.rubro !== filtros.categoria) return false;
+      if (filtros.linea && p.linea !== filtros.linea) return false;
       if (desde !== null && Number.isFinite(desde) && p.precio < desde) return false;
       if (hasta !== null && Number.isFinite(hasta) && p.precio > hasta) return false;
       if (filtros.tallas.length > 0 && !p.tallas.some((t) => filtros.tallas.includes(t.talla))) return false;
@@ -98,6 +102,8 @@ export function CatalogoClient({ productos }: { productos: Producto[] }) {
         marcas={marcas}
         generos={generos}
         colores={colores}
+        categorias={categorias}
+        lineas={lineas}
         tallas={tallas}
         valor={filtros}
         onChange={cambiarFiltros}

@@ -1,3 +1,4 @@
+import { del } from "@vercel/blob";
 import { NextRequest, NextResponse } from "next/server";
 import { guardarCatalogoPendiente } from "@/lib/blob";
 import { obtenerCSVDesdeURL, parsearCSV, parsearXLSX, type ArchivoParseado } from "@/lib/parseOrigen";
@@ -5,20 +6,37 @@ import { transformarFilas, validarColumnas } from "@/lib/transform";
 import type { ResumenImportacion } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
+  // Se borra al final, tanto si el import sale bien como si sale mal — es un
+  // archivo de paso, no hace falta conservarlo en Blob.
+  let blobUrlTemporal: string | null = null;
+
   try {
-    const formData = await request.formData();
-    const tipo = String(formData.get("tipo") ?? "");
+    const body = await request.json();
+    const tipo = String(body.tipo ?? "");
 
     let parseado: ArchivoParseado;
 
     if (tipo === "csv" || tipo === "xlsx") {
-      const archivo = formData.get("archivo");
-      if (!(archivo instanceof File)) {
-        return NextResponse.json({ ok: false, mensaje: "Falta el archivo." }, { status: 400 });
+      // El archivo ya se subió directo del navegador a Vercel Blob (ver
+      // CargadorCatalogo.tsx + /api/admin/upload-token) — acá solo se lee su
+      // contenido. Así se evita el límite de tamaño de body de las funciones
+      // serverless (~4.5 MB) y se pueden aceptar archivos grandes.
+      const blobUrl = String(body.blobUrl ?? "").trim();
+      if (!blobUrl) {
+        return NextResponse.json({ ok: false, mensaje: "Falta el archivo subido." }, { status: 400 });
       }
-      parseado = tipo === "csv" ? parsearCSV(await archivo.text()) : parsearXLSX(await archivo.arrayBuffer());
+      blobUrlTemporal = blobUrl;
+      const respuestaArchivo = await fetch(blobUrl);
+      if (!respuestaArchivo.ok) {
+        return NextResponse.json(
+          { ok: false, mensaje: `No se pudo leer el archivo subido (HTTP ${respuestaArchivo.status}).` },
+          { status: 502 },
+        );
+      }
+      parseado =
+        tipo === "csv" ? parsearCSV(await respuestaArchivo.text()) : parsearXLSX(await respuestaArchivo.arrayBuffer());
     } else if (tipo === "sheet") {
-      const url = String(formData.get("url") ?? "").trim();
+      const url = String(body.url ?? "").trim();
       if (!url) {
         return NextResponse.json({ ok: false, mensaje: "Falta el link de Google Sheets." }, { status: 400 });
       }
@@ -67,5 +85,11 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     const mensaje = err instanceof Error ? err.message : "Error inesperado al procesar el archivo.";
     return NextResponse.json({ ok: false, mensaje }, { status: 500 });
+  } finally {
+    if (blobUrlTemporal) {
+      del(blobUrlTemporal).catch(() => {
+        // no crítico: si falla la limpieza, el archivo temporal queda huérfano en Blob
+      });
+    }
   }
 }

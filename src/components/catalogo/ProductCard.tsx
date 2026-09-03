@@ -35,6 +35,11 @@ export function ProductCard({
             Agotado
           </span>
         )}
+        {producto.promocion && (
+          <span className="absolute right-2 top-2 rounded-full bg-danger-600 px-2.5 py-1 text-xs font-medium text-white">
+            Promoción
+          </span>
+        )}
       </div>
       <div className="flex flex-1 flex-col gap-1 p-3 sm:p-4">
         <span className="text-xs font-medium uppercase tracking-wide text-ink-500">{producto.marca}</span>

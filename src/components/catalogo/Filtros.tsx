@@ -7,6 +7,8 @@ export interface ValorFiltros {
   marca: string;
   genero: string;
   color: string;
+  categoria: string; // rubro: CALZADO / ACCESORIOS
+  linea: string;
   precioDesde: string;
   precioHasta: string;
   tallas: string[];
@@ -18,6 +20,8 @@ export const FILTROS_VACIOS: ValorFiltros = {
   marca: "",
   genero: "",
   color: "",
+  categoria: "",
+  linea: "",
   precioDesde: "",
   precioHasta: "",
   tallas: [],
@@ -34,6 +38,8 @@ export function filtrosDesdeParams(sp: URLSearchParams): ValorFiltros {
     marca: sp.get("marca") ?? "",
     genero: sp.get("genero") ?? "",
     color: sp.get("color") ?? "",
+    categoria: sp.get("cat") ?? "",
+    linea: sp.get("linea") ?? "",
     precioDesde: sp.get("desde") ?? "",
     precioHasta: sp.get("hasta") ?? "",
     tallas: talla ? talla.split(",").filter(Boolean) : [],
@@ -47,6 +53,8 @@ export function paramsDesdeFiltros(filtros: ValorFiltros, pagina: number): URLSe
   if (filtros.marca) sp.set("marca", filtros.marca);
   if (filtros.genero) sp.set("genero", filtros.genero);
   if (filtros.color) sp.set("color", filtros.color);
+  if (filtros.categoria) sp.set("cat", filtros.categoria);
+  if (filtros.linea) sp.set("linea", filtros.linea);
   if (filtros.precioDesde) sp.set("desde", filtros.precioDesde);
   if (filtros.precioHasta) sp.set("hasta", filtros.precioHasta);
   if (filtros.tallas.length > 0) sp.set("talla", filtros.tallas.join(","));
@@ -59,6 +67,8 @@ interface Props {
   marcas: string[];
   generos: string[];
   colores: string[];
+  categorias: string[];
+  lineas: string[];
   tallas: string[];
   valor: ValorFiltros;
   onChange: (valor: ValorFiltros) => void;
@@ -66,13 +76,13 @@ interface Props {
 
 function contarActivos(v: ValorFiltros): number {
   return (
-    [v.marca, v.genero, v.color, v.precioDesde, v.precioHasta].filter(Boolean).length +
+    [v.marca, v.genero, v.color, v.categoria, v.linea, v.precioDesde, v.precioHasta].filter(Boolean).length +
     (v.tallas.length > 0 ? 1 : 0) +
     (v.soloDisponibles ? 1 : 0)
   );
 }
 
-export function Filtros({ marcas, generos, colores, tallas, valor, onChange }: Props) {
+export function Filtros({ marcas, generos, colores, categorias, lineas, tallas, valor, onChange }: Props) {
   const [abierto, setAbierto] = useState(false);
   const idPanel = useId();
   const activos = contarActivos(valor);
@@ -153,6 +163,24 @@ export function Filtros({ marcas, generos, colores, tallas, valor, onChange }: P
           opciones={colores}
           todas="Todos los colores"
         />
+        {categorias.length > 1 && (
+          <Select
+            etiqueta="Categoría"
+            value={valor.categoria}
+            onChange={(v) => set("categoria", v)}
+            opciones={categorias}
+            todas="Calzado y accesorios"
+          />
+        )}
+        {lineas.length > 0 && (
+          <Select
+            etiqueta="Línea"
+            value={valor.linea}
+            onChange={(v) => set("linea", v)}
+            opciones={lineas}
+            todas="Todas las líneas"
+          />
+        )}
         <div className="col-span-2 flex items-end gap-2 sm:col-span-1">
           <div className="flex-1">
             <label htmlFor="precio-desde" className="mb-1 block text-xs font-medium text-ink-500">

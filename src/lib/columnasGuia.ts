@@ -2,10 +2,14 @@
 // panel de admin. Las obligatorias se importan de transform.ts (donde vive
 // la validación real) para que la guía nunca quede desincronizada de lo que
 // el sistema efectivamente exige.
+//
+// Estas son las columnas reales del export de SAP (hoja "OITM" de la
+// "Lista de Precio al mayor"), no una plantilla simplificada — una fila es
+// un Modelo+Color+Rango de tallas, no una fila por talla individual.
 
 import { COLUMNAS_OBLIGATORIAS } from "./transform";
 
-export type TipoColumna = "texto" | "numero" | "urls";
+export type TipoColumna = "texto" | "numero" | "curva" | "url";
 
 export interface ColumnaGuia {
   columna: string;
@@ -19,7 +23,8 @@ export interface ColumnaGuia {
 const ETIQUETA_TIPO: Record<TipoColumna, string> = {
   texto: "Texto",
   numero: "Número",
-  urls: "URLs separadas por coma",
+  curva: "Rango o curva",
+  url: "URL",
 };
 
 export function etiquetaTipo(tipo: TipoColumna): string {
@@ -28,110 +33,120 @@ export function etiquetaTipo(tipo: TipoColumna): string {
 
 export const COLUMNAS_GUIA: ColumnaGuia[] = [
   {
-    columna: "Nombre modelo",
+    columna: "ItemCode",
     obligatoria: true,
     tipo: "texto",
-    ejemplo: "Bota Urbana 220",
-    descripcion: "Agrupa todas las tallas y colores de un mismo modelo en un solo producto del catálogo.",
-    siFalta: "La fila se descarta — no se puede armar un producto sin modelo.",
+    ejemplo: "PI20189901706050",
+    descripcion: "Código SAP de esa fila (Modelo+Color+Rango de tallas). Se muestra como \"Código SAP\" en el detalle del producto.",
+    siFalta: "La fila se descarta — no se puede identificar el producto.",
   },
   {
-    columna: "Color",
+    columna: "U_PX_Modelo",
     obligatoria: true,
     tipo: "texto",
-    ejemplo: "Negro",
-    descripcion: "Junto con el modelo, define cada producto individual del catálogo (mismo modelo + distinto color = productos separados).",
+    ejemplo: "KZ-1899",
+    descripcion: "Agrupa todas las tallas y rangos de un mismo modelo en un solo producto del catálogo.",
     siFalta: "La fila se descarta.",
   },
   {
-    columna: "Talla",
+    columna: "U_PX_Color",
     obligatoria: true,
     tipo: "texto",
-    ejemplo: "38",
-    descripcion: "Identifica cada variante dentro del producto (el selector de talla en el detalle).",
+    ejemplo: "BEIGE",
+    descripcion: "Junto con el modelo, define cada producto individual (mismo modelo + distinto color = productos separados).",
     siFalta: "La fila se descarta.",
   },
   {
-    columna: "Price",
+    columna: "U_PX_Marca",
+    obligatoria: true,
+    tipo: "texto",
+    ejemplo: "KRIZA",
+    descripcion: "Se usa en la tarjeta de producto y en el filtro por marca.",
+    siFalta: "La fila se descarta.",
+  },
+  {
+    columna: "U_PX_Rubro",
+    obligatoria: true,
+    tipo: "texto",
+    ejemplo: "CALZADO",
+    descripcion:
+      "\"CALZADO\" expande U_PX_Serie + U_PX_Curva en tallas individuales. Cualquier otro valor (ej. \"ACCESORIOS\") se importa como producto de talla única (\"Único\"), vendido por unidad.",
+    siFalta: "Filas sin rubro se descartan en silencio (relleno vacío típico del export de SAP, no cuenta como error).",
+  },
+  {
+    columna: "PV Fabrica",
     obligatoria: true,
     tipo: "numero",
-    ejemplo: "24.90",
-    descripcion: "Precio en USD. Si las tallas de un mismo modelo+color traen precios distintos, se usa el más frecuente del grupo.",
+    ejemplo: "12.99",
+    descripcion: "Precio de venta al mayor que se muestra en el catálogo. Si el modelo+color trae más de un precio, se usa el más frecuente del grupo.",
     siFalta: "La fila se descarta si el valor está vacío, no es un número o es negativo.",
   },
   {
-    columna: "BcdCode",
-    obligatoria: true,
-    tipo: "texto",
-    ejemplo: "VLP-220-NEG-38",
-    descripcion: "Identificador SAP de esa variante puntual. Se muestra en el detalle del producto (talla · SKU) para cruzar contra Excel.",
-    siFalta: "La fila se descarta.",
+    columna: "U_PX_Serie",
+    obligatoria: false,
+    tipo: "curva",
+    ejemplo: "35-40",
+    descripcion: "Rango de tallas del producto (solo calzado). Junto con U_PX_Curva se expande en tallas individuales (35, 36, 37…).",
+    siFalta: "Si el rubro es CALZADO y falta Serie o Curva, esa fila se rechaza con motivo — el resto del archivo se importa igual.",
   },
   {
-    columna: "Marca",
+    columna: "U_PX_Curva",
     obligatoria: false,
-    tipo: "texto",
-    ejemplo: "Volpe",
-    descripcion: "Se usa en la tarjeta de producto y en el filtro por marca.",
-    siFalta: "El producto queda sin marca visible y no aparece en ningún filtro de marca.",
+    tipo: "curva",
+    ejemplo: "1-2-3-3-2-1",
+    descripcion:
+      "Pares de cada talla del rango, en el mismo orden — debe traer tantos números como tallas tenga U_PX_Serie. También define \"Venta por bulto de N pares\" (la suma de la curva).",
+    siFalta: "Si el rubro es CALZADO y no calza en cantidad con U_PX_Serie, esa fila se rechaza con motivo.",
+  },
+  {
+    columna: "Disponible a Ofertar",
+    obligatoria: false,
+    tipo: "numero",
+    ejemplo: "153",
+    descripcion:
+      "Stock total del producto (no por talla — el SAP no lo trae desglosado). Se reparte entre las tallas según la proporción de la curva para decidir cuáles se muestran disponibles o agotadas.",
+    siFalta: "Se asume 0 — todas las tallas de esa fila se muestran agotadas.",
   },
   {
     columna: "U_PX_Genero",
     obligatoria: false,
     tipo: "texto",
-    ejemplo: "Dama",
+    ejemplo: "DAMA",
     descripcion: "Se usa en el detalle del producto y en el filtro por género.",
     siFalta: "El producto no aparece en ningún filtro de género.",
   },
   {
-    columna: "Disponible",
+    columna: "U_PX_Linea",
     obligatoria: false,
-    tipo: "numero",
-    ejemplo: "12",
-    descripcion: "Stock de esa talla puntual. Cualquier valor mayor a 0 se considera disponible.",
-    siFalta: "La talla se muestra como agotada (se asume 0).",
+    tipo: "texto",
+    ejemplo: "LADIES",
+    descripcion: "Categoría o estilo del producto (ej. Casual Sport, Colegial, Cartera). Se usa en el filtro por línea.",
+    siFalta: "El producto no aparece en ningún filtro de línea.",
   },
   {
-    columna: "Todas las fotos y guia de tallas",
+    columna: "U_Promocion",
     obligatoria: false,
-    tipo: "urls",
-    ejemplo: "https://cdn.../foto1.jpg, https://cdn.../guiaTallasMesvol.jpg",
-    descripcion:
-      "URLs separadas por coma. Las que contienen \"guiaTallasMesvol\" se guardan aparte como guía de tallas; el resto son fotos reales del producto.",
+    tipo: "texto",
+    ejemplo: "S",
+    descripcion: "\"S\" muestra una etiqueta de \"Promoción\" en la tarjeta del producto. Cualquier otro valor (o vacío) no la muestra.",
+    siFalta: "El producto se importa igual, sin la etiqueta de promoción.",
+  },
+  {
+    columna: "U_LinkImagenChasea",
+    obligatoria: false,
+    tipo: "url",
+    ejemplo: "https://cdn.shopify.com/.../1899_beige_0.jpg",
+    descripcion: "Foto del producto. Si falta, se intenta con la columna \"Foto\".",
     siFalta:
       "Si el producto (agrupado por modelo+color) queda sin ninguna foto real, se excluye del catálogo publicado — no es un error del archivo, es la regla de negocio.",
   },
   {
-    columna: "Materiales del exterior",
+    columna: "Status Imagen",
     obligatoria: false,
     tipo: "texto",
-    ejemplo: "Cuero sintético",
-    descripcion: "Ficha técnica del detalle de producto.",
-    siFalta: "Ese campo simplemente no aparece en la ficha técnica.",
-  },
-  {
-    columna: "Materiales del interior",
-    obligatoria: false,
-    tipo: "texto",
-    ejemplo: "Textil",
-    descripcion: "Ficha técnica del detalle de producto.",
-    siFalta: "Ese campo simplemente no aparece en la ficha técnica.",
-  },
-  {
-    columna: "Materiales de la suela",
-    obligatoria: false,
-    tipo: "texto",
-    ejemplo: "Goma",
-    descripcion: "Ficha técnica del detalle de producto.",
-    siFalta: "Ese campo simplemente no aparece en la ficha técnica.",
-  },
-  {
-    columna: "Tipo de calzado",
-    obligatoria: false,
-    tipo: "texto",
-    ejemplo: "Bota",
-    descripcion: "Ficha técnica del detalle de producto.",
-    siFalta: "Ese campo simplemente no aparece en la ficha técnica.",
+    ejemplo: "Con Foto",
+    descripcion: "Informativo — la regla real de \"sin foto\" se aplica sobre la URL de la foto, no sobre este texto.",
+    siFalta: "No afecta el import.",
   },
 ];
 

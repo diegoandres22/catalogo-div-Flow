@@ -40,7 +40,7 @@ export default function PaginaLoginAdmin() {
         className="w-full max-w-sm rounded-2xl border border-ink-200 bg-paper-raised p-6 shadow-sm sm:p-8"
       >
         <h1 className="text-lg font-semibold text-ink-900">Panel de administración</h1>
-        <p className="mt-1 text-sm text-ink-500">Ingresá la contraseña para cargar el catálogo.</p>
+        <p className="mt-1 text-sm text-ink-500">Ingresá la contraseña.</p>
 
         <label htmlFor="password" className="mt-6 mb-1.5 block text-sm font-medium text-ink-900">
           Contraseña

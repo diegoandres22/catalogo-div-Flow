@@ -20,7 +20,7 @@ export function SelectorTalla({ tallas }: { tallas: TallaVariante[] }) {
           const activa = seleccionada === t.talla;
           return (
             <button
-              key={t.bcdCode}
+              key={t.talla}
               type="button"
               disabled={agotada}
               aria-pressed={activa}

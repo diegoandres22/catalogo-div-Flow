@@ -70,20 +70,33 @@ anterior).
 
 ## Columnas del archivo de origen (SAP)
 
-El export trae **una fila por variante talla+color** (no una fila por
-producto) — el sistema las agrupa. Columnas que sí se usan:
+El export real es la hoja `OITM` de la "Lista de Precio al mayor": **una
+fila por Modelo+Color+Rango de tallas** (no una fila por talla individual).
+`U_PX_Serie` (rango, ej. `35-40`) + `U_PX_Curva` (pares por talla dentro de
+ese rango, ej. `1-2-3-3-2-1`) se expanden en tallas individuales — el
+sistema busca automáticamente, entre todas las hojas del archivo, la que
+tenga una columna `ItemCode` (así no importa si el export trae hojas de
+pivote/referencia antes que los datos reales).
 
 | Columna en el SAP | Para qué se usa |
 |---|---|
-| `Nombre modelo` | agrupador de producto (obligatoria) |
-| `Color` | agrupador de producto (obligatoria) |
-| `Talla` | variante dentro del producto (obligatoria) |
-| `Price` | precio en USD (obligatoria) |
-| `BcdCode` | identificador de la variante (obligatoria) |
-| `Marca`, `U_PX_Genero` | metadata de producto |
-| `Disponible` | stock de esa talla — si es 0, se muestra "Agotada" |
-| `Todas las fotos y guia de tallas` | URLs separadas por coma; las que contienen `guiaTallasMesvol` se separan como guía de tallas, el resto son fotos reales |
-| `Materiales del exterior/interior/de la suela`, `Tipo de calzado` | ficha técnica opcional |
+| `ItemCode` | código SAP de la fila — se muestra como "Código SAP" en el producto (obligatoria) |
+| `U_PX_Modelo` | agrupador de producto (obligatoria) |
+| `U_PX_Color` | agrupador de producto (obligatoria) |
+| `U_PX_Marca` | marca — tarjeta de producto y filtro (obligatoria) |
+| `U_PX_Rubro` | `CALZADO` expande Serie+Curva en tallas; cualquier otro valor (`ACCESORIOS`, etc.) se importa como talla única "Único", vendido por unidad (obligatoria) |
+| `PV Fabrica` | precio de venta al mayor en USD (obligatoria) |
+| `U_PX_Serie` + `U_PX_Curva` | rango y curva de tallas — obligatorias solo si `U_PX_Rubro` es `CALZADO` |
+| `Disponible a Ofertar` | stock total del producto (no por talla); se reparte entre tallas según la proporción de la curva |
+| `U_PX_Genero`, `U_PX_Linea` | metadata de producto — usadas en los filtros de género y línea |
+| `U_Promocion` | `S` muestra una etiqueta "Promoción" en la tarjeta |
+| `U_LinkImagenChasea` (o `Foto`) | foto del producto |
+
+Ojo: varias columnas de precio del export real traen espacios ocultos en el
+encabezado (ej. `" PV Fabrica "` en vez de `"PV Fabrica"`) — `parseOrigen.ts`
+los recorta al leer el archivo, así que esto no debería volver a romper el
+import, pero si se agrega una columna nueva y el valor "desaparece" sin
+motivo aparente, es lo primero a sospechar.
 
 Las columnas en negrita arriba ("obligatoria") son las que el sistema exige
 para aceptar el archivo. Todo lo demás que traiga el export (boilerplate de
@@ -171,26 +184,31 @@ producto sin foto.
 Cosas que vale la pena tener presentes al tocar este código o al revisar los
 datos que vienen del SAP:
 
-- **`cantidadPorBulto` está fijo en `12`** para todos los productos (columna
-  real del SAP todavía no definida). Está marcado con `// TODO` en
-  `src/lib/transform.ts` — cuando exista la columna, es cambiar una línea ahí.
-- **Precio por producto:** cuando las tallas de un mismo modelo+color traen
-  precios distintos entre sí (pasa en los datos reales), se usa el más
-  frecuente del grupo. Si aparece seguido, vale la pena revisarlo del lado
-  del SAP.
-- **`BcdCode` no siempre es único** en los datos reales (se vieron
-  colisiones entre productos distintos). Se guarda igual porque es lo que
-  trae el SAP, pero la URL de cada producto (`/producto/[id]`) se genera a
-  partir de modelo+color, no de `BcdCode`.
+- **`cantidadPorBulto` sale de la curva real** (suma de `U_PX_Curva`), no
+  está fijo. Para accesorios/otros rubros sin curva es `1` (venta por
+  unidad).
+- **Stock por talla es una estimación:** el SAP no trae stock desglosado por
+  talla individual, solo un total por producto (`Disponible a Ofertar`). Se
+  reparte proporcionalmente según la curva (`talla.disponible` en
+  `transform.ts`) — es más informativo que asumir "todo disponible por
+  igual", pero sigue siendo una estimación, no un conteo exacto.
+- **Precio por producto:** cuando el modelo+color trae más de una fila con
+  precios distintos entre sí (rangos de tallas distintos), se usa el más
+  frecuente del grupo.
+- **`ItemCode` (código SAP) no es por talla individual**, es por
+  Modelo+Color+Rango — se muestra una sola vez por producto ("Código SAP"),
+  no repetido por talla. La URL de cada producto (`/producto/[id]`) se
+  genera a partir de modelo+color, no del código SAP.
 - **No hay filtro "sin imagen" en el catálogo público:** los productos sin
   fotos reales ya quedan excluidos al importar (ver sección de arriba), así
   que ese filtro no tendría nada que mostrar ahí. Esos casos se ven en el
   resumen de `/admin` al momento de cargar el archivo, no en el catálogo
   público.
-- **Tamaño de archivo:** las funciones de Vercel aceptan ~4.5 MB de cuerpo
-  por request. El archivo real usado para probar esto (13.811 filas) pesa
-  2.4 MB — hay margen, pero si el catálogo crece mucho más puede hacer falta
-  ajustar el límite de la función `/api/admin/upload`.
+- **Tamaño de archivo:** el archivo (CSV/XLSX/XLS/XLSM) se sube directo del
+  navegador a Vercel Blob (`@vercel/blob/client`, ver
+  `/api/admin/upload-token`) antes de procesarse — no pasa por el límite de
+  ~4.5 MB de body de las funciones serverless. El único tope es el
+  resguardo de 250 MB en `CargadorCatalogo.tsx`, ajustable si hiciera falta.
 
 ## Estructura del proyecto
 
