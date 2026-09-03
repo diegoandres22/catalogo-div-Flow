@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Toaster } from "sonner";
+import { CarritoProvider } from "@/components/carrito/CarritoContext";
+import { CarritoDrawer } from "@/components/carrito/CarritoDrawer";
 import "./globals.css";
 
 // Fuente del sistema en vez de next/font/google: carga instantánea, cero
@@ -42,7 +44,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="es" className="h-full antialiased">
       <body className="min-h-full flex flex-col bg-paper text-ink-900">
-        {children}
+        <CarritoProvider>
+          {children}
+          <CarritoDrawer />
+        </CarritoProvider>
         <Toaster
           position="top-center"
           richColors

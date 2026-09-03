@@ -6,6 +6,8 @@ import { Header } from "@/components/ui/Header";
 import { Footer } from "@/components/ui/Footer";
 import { Carrusel } from "@/components/detalle/Carrusel";
 import { SelectorTalla } from "@/components/detalle/SelectorTalla";
+import { AgregarCarrito } from "@/components/detalle/AgregarCarrito";
+import { BotonCompartir } from "@/components/detalle/BotonCompartir";
 import { formatearPrecio } from "@/lib/format";
 import { esCalzado } from "@/lib/transform";
 
@@ -20,7 +22,36 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const catalogo = await leerCatalogoPublico();
   const producto = catalogo?.productos.find((p) => p.id === id);
-  return { title: producto ? `${producto.modelo} · ${producto.color}` : "Producto no encontrado" };
+
+  if (!producto) {
+    return { title: "Producto no encontrado" };
+  }
+
+  const titulo = `${producto.modelo} · ${producto.color}`;
+  const descripcion = `${producto.marca} — ${formatearPrecio(producto.precio)}. Catálogo mayorista Calzados Mesvol.`;
+  // La imagen del producto en la vista previa del link al compartirlo (ej.
+  // por WhatsApp) — sin esto, cualquier producto compartido mostraba la
+  // imagen genérica del sitio en vez de la foto real de lo que se comparte.
+  const imagen = producto.fotos[0];
+
+  return {
+    title: titulo,
+    description: descripcion,
+    openGraph: {
+      title: titulo,
+      description: descripcion,
+      siteName: "Catálogo Mayorista — Calzados Mesvol, C.A.",
+      locale: "es_VE",
+      type: "website",
+      images: imagen ? [{ url: imagen, alt: `${producto.marca} ${producto.modelo} ${producto.color}` }] : undefined,
+    },
+    twitter: {
+      card: imagen ? "summary_large_image" : "summary",
+      title: titulo,
+      description: descripcion,
+      images: imagen ? [imagen] : undefined,
+    },
+  };
 }
 
 export default async function PaginaProducto({ params, searchParams }: Props) {
@@ -51,12 +82,15 @@ export default async function PaginaProducto({ params, searchParams }: Props) {
     <>
       <Header />
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
-        <Link href={hrefVolver} className="mb-4 inline-flex items-center gap-1 text-sm text-ink-500 hover:text-ink-900">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-            <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          Volver al catálogo
-        </Link>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <Link href={hrefVolver} className="inline-flex items-center gap-1 text-sm text-ink-500 hover:text-ink-900">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Volver al catálogo
+          </Link>
+          <BotonCompartir producto={producto} />
+        </div>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-10">
           <Carrusel fotos={producto.fotos} alt={producto.modelo} />
@@ -94,6 +128,8 @@ export default async function PaginaProducto({ params, searchParams }: Props) {
             </div>
 
             <SelectorTalla tallas={producto.tallas} />
+
+            <AgregarCarrito producto={producto} />
 
             {esCalzado(producto.rubro) && producto.tallas.some((t) => t.porBulto) && (
               <div className="rounded-xl border border-ink-200 p-3">

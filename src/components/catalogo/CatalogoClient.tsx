@@ -7,6 +7,7 @@ import { Filtros, FILTROS_VACIOS, filtrosDesdeParams, paramsDesdeFiltros, type V
 import { ProductGrid } from "./ProductGrid";
 import { EstadoVacio } from "./EstadoVacio";
 import { tieneStock } from "@/lib/format";
+import { esCalzado } from "@/lib/transform";
 
 const POR_PAGINA = 100;
 
@@ -41,13 +42,32 @@ export function CatalogoClient({ productos }: { productos: Producto[] }) {
     [productos],
   );
 
+  // Orden por defecto (sin búsqueda/filtros activos): calzado antes que
+  // accesorios, luego por marca y modelo — para que el catálogo abra con una
+  // vista curada en vez del orden crudo de la fila del Excel importado.
+  const productosOrdenados = useMemo(() => {
+    return [...productos].sort((a, b) => {
+      const rubroA = esCalzado(a.rubro) ? 0 : 1;
+      const rubroB = esCalzado(b.rubro) ? 0 : 1;
+      if (rubroA !== rubroB) return rubroA - rubroB;
+      const marcaCmp = a.marca.localeCompare(b.marca, "es");
+      if (marcaCmp !== 0) return marcaCmp;
+      return a.modelo.localeCompare(b.modelo, "es");
+    });
+  }, [productos]);
+
   const filtrados = useMemo(() => {
     const busqueda = filtros.busqueda.trim().toLowerCase();
     const desde = filtros.precioDesde ? Number(filtros.precioDesde) : null;
     const hasta = filtros.precioHasta ? Number(filtros.precioHasta) : null;
 
-    return productos.filter((p) => {
-      if (busqueda && !p.modelo.toLowerCase().includes(busqueda)) return false;
+    return productosOrdenados.filter((p) => {
+      if (busqueda) {
+        // Busca en modelo, marca, color y código SAP — no solo en el modelo,
+        // para que un comprador pueda tipear cualquiera de esos datos.
+        const campoBusqueda = `${p.modelo} ${p.marca} ${p.color} ${p.codigoSap}`.toLowerCase();
+        if (!campoBusqueda.includes(busqueda)) return false;
+      }
       if (filtros.marca && p.marca !== filtros.marca) return false;
       if (filtros.genero && p.genero !== filtros.genero) return false;
       if (filtros.color && p.color !== filtros.color) return false;
@@ -59,7 +79,7 @@ export function CatalogoClient({ productos }: { productos: Producto[] }) {
       if (filtros.soloDisponibles && !tieneStock(p.tallas)) return false;
       return true;
     });
-  }, [productos, filtros]);
+  }, [productosOrdenados, filtros]);
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
   const paginaActual = Math.min(pagina, totalPaginas);

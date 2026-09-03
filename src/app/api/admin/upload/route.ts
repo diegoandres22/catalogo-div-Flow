@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { guardarCatalogoPendiente } from "@/lib/blob";
+import { guardarCatalogoPendiente, guardarArchivoOriginalPendiente, limpiarArchivoOriginalPendiente } from "@/lib/blob";
 import { obtenerCSVDesdeURL, parsearCSV, parsearXLSX, type ArchivoParseado } from "@/lib/parseOrigen";
 import { transformarFilas, validarColumnas } from "@/lib/transform";
 import type { ResumenImportacion } from "@/lib/types";
@@ -19,6 +19,10 @@ export async function POST(request: NextRequest) {
     const tipo = String(formData.get("tipo") ?? "");
 
     let parseado: ArchivoParseado;
+    // Bytes crudos del archivo subido (si vino de csv/xlsx), para poder
+    // ofrecerlo después como descarga desde el panel admin — ver
+    // guardarArchivoOriginalPendiente más abajo.
+    let archivoOriginal: { bytes: ArrayBuffer; nombreArchivo: string; contentType: string } | null = null;
 
     if (tipo === "csv" || tipo === "xlsx") {
       const archivo = formData.get("archivo");
@@ -26,7 +30,15 @@ export async function POST(request: NextRequest) {
         logError("api/admin/upload", "El pedido llegó sin archivo adjunto en el campo 'archivo'.");
         return NextResponse.json({ ok: false, mensaje: "Falta el archivo." }, { status: 400 });
       }
-      parseado = tipo === "csv" ? parsearCSV(await archivo.text()) : parsearXLSX(await archivo.arrayBuffer());
+      const bytes = await archivo.arrayBuffer();
+      archivoOriginal = {
+        bytes,
+        nombreArchivo: archivo.name || (tipo === "csv" ? "catalogo.csv" : "catalogo.xlsx"),
+        contentType:
+          archivo.type ||
+          (tipo === "csv" ? "text/csv" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+      };
+      parseado = tipo === "csv" ? parsearCSV(new TextDecoder("utf-8").decode(bytes)) : parsearXLSX(bytes);
     } else if (tipo === "sheet") {
       const url = String(formData.get("url") ?? "").trim();
       if (!url) {
@@ -88,6 +100,21 @@ export async function POST(request: NextRequest) {
     // Se guarda como "pendiente": el admin todavía tiene que confirmar el
     // reemplazo. El catálogo publicado no se toca hasta ese momento.
     await guardarCatalogoPendiente(catalogo);
+
+    // Igual que el catálogo, el archivo crudo (si vino de csv/xlsx) queda
+    // "pendiente" hasta confirmar — se promueve junto con el catálogo en
+    // confirmarReemplazoCatalogo(). Si el origen fue un link de Google
+    // Sheets no hay archivo que guardar; se limpia cualquier pendiente de
+    // una carga anterior para no dejar un archivo desactualizado a mitad de
+    // camino.
+    if (archivoOriginal) {
+      await guardarArchivoOriginalPendiente(archivoOriginal.bytes, {
+        nombreArchivo: archivoOriginal.nombreArchivo,
+        contentType: archivoOriginal.contentType,
+      });
+    } else {
+      await limpiarArchivoOriginalPendiente();
+    }
 
     return NextResponse.json({ ok: true, resumen });
   } catch (err) {

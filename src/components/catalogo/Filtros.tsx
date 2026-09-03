@@ -100,7 +100,7 @@ export function Filtros({ marcas, generos, colores, categorias, lineas, tallas, 
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-3">
         <label htmlFor="busqueda-catalogo" className="sr-only">
-          Buscar por nombre de modelo
+          Buscar por modelo, marca, color o código SAP
         </label>
         <div className="relative flex-1">
           <svg
@@ -119,7 +119,7 @@ export function Filtros({ marcas, generos, colores, categorias, lineas, tallas, 
           <input
             id="busqueda-catalogo"
             type="search"
-            placeholder="Buscar modelo…"
+            placeholder="Buscar modelo, marca, color o código…"
             value={valor.busqueda}
             onChange={(e) => set("busqueda", e.target.value)}
             className="w-full rounded-full border border-ink-200 bg-paper-raised py-2.5 pl-10 pr-4 text-sm text-ink-900 placeholder:text-ink-500 focus:border-accent-600"
