@@ -50,6 +50,19 @@ function textoLimpio(valor: unknown): string {
   return t;
 }
 
+/**
+ * Separa una celda de foto que puede traer varias URLs pegadas en un mismo
+ * campo, separadas por comas (ej. "url1, url2, url3") — así el producto
+ * arma el carrusel con las fotos reales en vez de tratar el campo entero
+ * como una única URL inválida. Sigue funcionando igual que antes para el
+ * caso normal de una sola URL por celda.
+ */
+function separarUrls(valor: unknown): string[] {
+  const texto = textoLimpio(valor);
+  if (!texto) return [];
+  return Array.from(new Set(texto.split(",").map((u) => u.trim()).filter(Boolean)));
+}
+
 function aNumero(valor: unknown): number | null {
   if (valor === null || valor === undefined || valor === "") return null;
   const n = typeof valor === "number" ? valor : Number(String(valor).replace(/,/g, "").trim());
@@ -181,7 +194,8 @@ function validarFilas(filas: FilaOrigen[]): { validas: FilaValidada[]; errores: 
       cantidadPorBulto = 1;
     }
 
-    const fotoUrl = textoLimpio(fila["U_LinkImagenChasea"]) || textoLimpio(fila["Foto"]);
+    const fotosDeChasea = separarUrls(fila["U_LinkImagenChasea"]);
+    const fotos = fotosDeChasea.length > 0 ? fotosDeChasea : separarUrls(fila["Foto"]);
 
     validas.push({
       filaIndice,
@@ -194,7 +208,7 @@ function validarFilas(filas: FilaOrigen[]): { validas: FilaValidada[]; errores: 
       linea: textoLimpio(fila["U_PX_Linea"]),
       promocion: aBooleanoSN(fila["U_Promocion"]),
       precio,
-      fotos: fotoUrl ? [fotoUrl] : [],
+      fotos,
       tallas,
       cantidadPorBulto,
     });
