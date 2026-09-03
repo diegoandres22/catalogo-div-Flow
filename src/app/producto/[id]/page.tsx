@@ -7,6 +7,7 @@ import { Footer } from "@/components/ui/Footer";
 import { Carrusel } from "@/components/detalle/Carrusel";
 import { SelectorTalla } from "@/components/detalle/SelectorTalla";
 import { formatearPrecio } from "@/lib/format";
+import { esCalzado } from "@/lib/transform";
 
 export const dynamic = "force-dynamic";
 
@@ -62,7 +63,17 @@ export default async function PaginaProducto({ params, searchParams }: Props) {
 
           <div className="flex flex-col gap-5">
             <div>
-              <span className="text-xs font-medium uppercase tracking-wide text-ink-500">{producto.marca}</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-medium uppercase tracking-wide text-ink-500">{producto.marca}</span>
+                {producto.linea && (
+                  <span className="text-xs text-ink-500">· {producto.linea}</span>
+                )}
+                {producto.promocion && (
+                  <span className="rounded-full bg-danger-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-danger-600">
+                    Promoción
+                  </span>
+                )}
+              </div>
               <h1 className="mt-1 text-xl font-semibold text-ink-900 sm:text-2xl">{producto.modelo}</h1>
               <p className="mt-1 text-sm text-ink-500">
                 Color: <span className="text-ink-900">{producto.color}</span>
@@ -73,24 +84,36 @@ export default async function PaginaProducto({ params, searchParams }: Props) {
             <p className="text-2xl font-semibold text-ink-900">{formatearPrecio(producto.precio)}</p>
 
             <div className="rounded-xl bg-accent-100 px-4 py-3 text-sm text-accent-700">
-              Venta por bulto de <strong>{producto.cantidadPorBulto}</strong> pares
+              {esCalzado(producto.rubro) ? (
+                <>
+                  Venta por bulto de <strong>{producto.cantidadPorBulto}</strong> pares
+                </>
+              ) : (
+                <>Venta por unidad</>
+              )}
             </div>
 
             <SelectorTalla tallas={producto.tallas} />
 
-            <div className="rounded-xl border border-ink-200 p-3">
-              <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-500">
-                Referencia SAP (talla · SKU)
-              </h2>
-              <ul className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-3">
-                {producto.tallas.map((t) => (
-                  <li key={t.bcdCode} className="flex items-baseline justify-between gap-2 text-ink-700">
-                    <span className="font-medium text-ink-900">{t.talla}</span>
-                    <span className="truncate font-mono text-ink-500">{t.bcdCode}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            {esCalzado(producto.rubro) && producto.tallas.some((t) => t.porBulto) && (
+              <div className="rounded-xl border border-ink-200 p-3">
+                <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-500">
+                  Distribución por bulto (talla · pares)
+                </h2>
+                <ul className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-3">
+                  {producto.tallas.map((t) => (
+                    <li key={t.talla} className="flex items-baseline justify-between gap-2 text-ink-700">
+                      <span className="font-medium text-ink-900">{t.talla}</span>
+                      <span className="font-mono text-ink-500">{t.porBulto ?? "—"}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <p className="text-xs text-ink-500">
+              Código SAP: <span className="font-mono text-ink-700">{producto.codigoSap}</span>
+            </p>
 
             {producto.guiaTallas.length > 0 && (
               <a
