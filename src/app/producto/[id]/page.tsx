@@ -12,6 +12,7 @@ export const dynamic = "force-dynamic";
 
 interface Props {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ volver?: string }>;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -21,12 +22,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return { title: producto ? `${producto.modelo} · ${producto.color}` : "Producto no encontrado" };
 }
 
-export default async function PaginaProducto({ params }: Props) {
+export default async function PaginaProducto({ params, searchParams }: Props) {
   const { id } = await params;
+  const { volver } = await searchParams;
   const catalogo = await leerCatalogoPublico();
   const producto = catalogo?.productos.find((p) => p.id === id);
 
   if (!producto) notFound();
+
+  // Solo se usa si viene del catálogo (empieza con "/"); cualquier otro
+  // valor (link editado a mano, por ejemplo) cae al catálogo sin filtrar.
+  const hrefVolver = volver && volver.startsWith("/") ? volver : "/";
 
   const materialesVisibles = Object.entries(producto.materiales ?? {}).filter(([, v]) => Boolean(v)) as [
     string,
@@ -44,7 +50,7 @@ export default async function PaginaProducto({ params }: Props) {
     <>
       <Header />
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6 sm:py-8">
-        <Link href="/" className="mb-4 inline-flex items-center gap-1 text-sm text-ink-500 hover:text-ink-900">
+        <Link href={hrefVolver} className="mb-4 inline-flex items-center gap-1 text-sm text-ink-500 hover:text-ink-900">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
             <path d="M15 18l-6-6 6-6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>

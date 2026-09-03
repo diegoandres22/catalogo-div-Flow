@@ -24,6 +24,37 @@ export const FILTROS_VACIOS: ValorFiltros = {
   soloDisponibles: false,
 };
 
+// Los filtros se reflejan en la URL (query string) para que: 1) el botón
+// "atrás" del navegador y el link "Volver al catálogo" restauren exactamente
+// lo que se estaba viendo, y 2) el link se pueda compartir ya filtrado.
+export function filtrosDesdeParams(sp: URLSearchParams): ValorFiltros {
+  const talla = sp.get("talla");
+  return {
+    busqueda: sp.get("q") ?? "",
+    marca: sp.get("marca") ?? "",
+    genero: sp.get("genero") ?? "",
+    color: sp.get("color") ?? "",
+    precioDesde: sp.get("desde") ?? "",
+    precioHasta: sp.get("hasta") ?? "",
+    tallas: talla ? talla.split(",").filter(Boolean) : [],
+    soloDisponibles: sp.get("disp") === "1",
+  };
+}
+
+export function paramsDesdeFiltros(filtros: ValorFiltros, pagina: number): URLSearchParams {
+  const sp = new URLSearchParams();
+  if (filtros.busqueda.trim()) sp.set("q", filtros.busqueda.trim());
+  if (filtros.marca) sp.set("marca", filtros.marca);
+  if (filtros.genero) sp.set("genero", filtros.genero);
+  if (filtros.color) sp.set("color", filtros.color);
+  if (filtros.precioDesde) sp.set("desde", filtros.precioDesde);
+  if (filtros.precioHasta) sp.set("hasta", filtros.precioHasta);
+  if (filtros.tallas.length > 0) sp.set("talla", filtros.tallas.join(","));
+  if (filtros.soloDisponibles) sp.set("disp", "1");
+  if (pagina > 1) sp.set("pagina", String(pagina));
+  return sp;
+}
+
 interface Props {
   marcas: string[];
   generos: string[];

@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { Producto } from "@/lib/types";
-import { Filtros, FILTROS_VACIOS, type ValorFiltros } from "./Filtros";
+import { Filtros, FILTROS_VACIOS, filtrosDesdeParams, paramsDesdeFiltros, type ValorFiltros } from "./Filtros";
 import { ProductGrid } from "./ProductGrid";
 import { EstadoVacio } from "./EstadoVacio";
 import { tieneStock } from "@/lib/format";
@@ -20,8 +21,15 @@ function tallasOrdenadas(valores: string[]): string[] {
 }
 
 export function CatalogoClient({ productos }: { productos: Producto[] }) {
-  const [filtros, setFiltros] = useState<ValorFiltros>(FILTROS_VACIOS);
-  const [pagina, setPagina] = useState(1);
+  // Se leen una sola vez, al montar, para inicializar el estado — así el
+  // catálogo arranca mostrando exactamente lo que decía la URL (por ejemplo,
+  // al volver desde un producto o al abrir un link compartido ya filtrado).
+  const searchParamsIniciales = useSearchParams();
+  const [filtros, setFiltros] = useState<ValorFiltros>(() => filtrosDesdeParams(searchParamsIniciales));
+  const [pagina, setPagina] = useState(() => {
+    const p = Number(searchParamsIniciales.get("pagina"));
+    return Number.isFinite(p) && p > 0 ? p : 1;
+  });
 
   const marcas = useMemo(() => unicosOrdenados(productos.map((p) => p.marca)), [productos]);
   const generos = useMemo(() => unicosOrdenados(productos.map((p) => p.genero)), [productos]);
@@ -55,6 +63,24 @@ export function CatalogoClient({ productos }: { productos: Producto[] }) {
     () => filtrados.slice((paginaActual - 1) * POR_PAGINA, paginaActual * POR_PAGINA),
     [filtrados, paginaActual],
   );
+
+  // Mantiene la URL sincronizada con los filtros y la página activos, sin
+  // pasar por el router de Next (evita recargar datos del servidor en cada
+  // tecla). replaceState para no llenar el historial con una entrada por
+  // cada cambio de filtro.
+  useEffect(() => {
+    const qs = paramsDesdeFiltros(filtros, paginaActual).toString();
+    const url = qs ? `/?${qs}` : "/";
+    window.history.replaceState(null, "", url);
+  }, [filtros, paginaActual]);
+
+  // Href al que vuelve cada tarjeta de producto — el catálogo completo con
+  // los filtros y la página actuales, para que "Volver al catálogo" no
+  // arranque de cero.
+  const volver = useMemo(() => {
+    const qs = paramsDesdeFiltros(filtros, paginaActual).toString();
+    return qs ? `/?${qs}` : "/";
+  }, [filtros, paginaActual]);
 
   function cambiarFiltros(v: ValorFiltros) {
     setFiltros(v);
@@ -98,7 +124,7 @@ export function CatalogoClient({ productos }: { productos: Producto[] }) {
         />
       ) : (
         <>
-          <ProductGrid productos={paginados} />
+          <ProductGrid productos={paginados} volver={volver} />
 
           {totalPaginas > 1 && (
             <nav className="mt-4 flex items-center justify-center gap-3" aria-label="Paginado del catálogo">

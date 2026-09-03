@@ -3,12 +3,24 @@ import { ImagenProducto } from "./ImagenProducto";
 import type { Producto } from "@/lib/types";
 import { formatearPrecio, tieneStock } from "@/lib/format";
 
-export function ProductCard({ producto, prioridad = false }: { producto: Producto; prioridad?: boolean }) {
+export function ProductCard({
+  producto,
+  prioridad = false,
+  volver,
+}: {
+  producto: Producto;
+  prioridad?: boolean;
+  volver?: string;
+}) {
   const disponible = tieneStock(producto.tallas);
+  const href =
+    volver && volver !== "/"
+      ? `/producto/${producto.id}?volver=${encodeURIComponent(volver)}`
+      : `/producto/${producto.id}`;
 
   return (
     <Link
-      href={`/producto/${producto.id}`}
+      href={href}
       className="group flex flex-col overflow-hidden rounded-2xl border border-ink-200 bg-paper-raised transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-ink-900/5"
     >
       <div className="relative aspect-[3/4] w-full">
