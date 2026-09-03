@@ -4,7 +4,7 @@ import Image from "next/image";
 const MARCAS = [
   { nombre: "Volpe", src: "/marcas/volpe.png", ancho: 783, alto: 161 },
   { nombre: "Vita Kids", src: "/marcas/vitakids.png", ancho: 976, alto: 346 },
-  { nombre: "Kriza", src: "/marcas/kriza.svg", ancho: 1001, alto: 275 },
+  { nombre: "Kriza", src: "/marcas/kriza.png", ancho: 1001, alto: 275 },
 ];
 
 export function Footer() {
