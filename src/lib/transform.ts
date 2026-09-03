@@ -56,8 +56,13 @@ function aNumero(valor: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export function esCalzado(rubro: string): boolean {
-  return rubro.trim().toUpperCase() === "CALZADO";
+// Acepta undefined/null a propósito: el catálogo publicado puede tener
+// productos de una importación previa a este campo (o cualquier dato
+// incompleto por otra vía) — sin este resguardo, /producto/[id] tiraba
+// "Cannot read properties of undefined (reading 'trim')" y rompía la
+// página entera de ese producto en vez de mostrarlo como "venta por unidad".
+export function esCalzado(rubro: string | null | undefined): boolean {
+  return (rubro ?? "").trim().toUpperCase() === "CALZADO";
 }
 
 /** "S" / "SI" / "SÍ" -> true. Cualquier otra cosa (incluido vacío o "N") -> false. */

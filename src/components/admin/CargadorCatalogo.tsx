@@ -1,10 +1,9 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { upload } from "@vercel/blob/client";
 import { toast } from "sonner";
 import type { ResumenImportacion } from "@/lib/types";
-import { logError, pistaBlob } from "@/lib/logger";
+import { logError } from "@/lib/logger";
 import { ResumenPrevio } from "./ResumenPrevio";
 import { GuiaColumnas } from "./GuiaColumnas";
 import { TablaErrores } from "./TablaErrores";
@@ -12,11 +11,15 @@ import { TablaErrores } from "./TablaErrores";
 type Origen = "csv" | "xlsx" | "sheet";
 type Estado = "inicial" | "procesando" | "previsualizando" | "confirmando" | "confirmado" | "rechazado";
 
-// El archivo se sube directo del navegador a Vercel Blob (no pasa por
-// nuestra función serverless), así que esto es solo una salvaguarda
-// razonable, no una restricción técnica real — 250 MB es muchísimo más de
-// lo que pesa una planilla de Excel, incluso con macros o miles de filas.
-const TAMANO_MAXIMO_BYTES = 250 * 1024 * 1024;
+// El archivo pasa por nuestra función serverless (/api/admin/upload), así
+// que está sujeto al límite real de body de Vercel: 4.5 MB. Antes se subía
+// directo del navegador a Vercel Blob para evitar ese límite, pero ese
+// camino (vercel.com/api/blob) está devolviendo respuestas sin cabecera CORS
+// en este proyecto — confirmado con multipart y sin multipart, y es un
+// problema del lado de Vercel (reportado en su propio foro de comunidad),
+// no de este código. Mientras eso no se resuelva, se vuelve al camino
+// simple: 4 MB de margen, por debajo del límite real de 4.5 MB.
+const TAMANO_MAXIMO_BYTES = 4 * 1024 * 1024;
 const EXTENSIONES: Record<"csv" | "xlsx", string[]> = {
   csv: [".csv"],
   xlsx: [".xlsx", ".xls", ".xlsm"],
@@ -77,43 +80,22 @@ export function CargadorCatalogo({ bloqueadoPorOtraOperacion, onOperacionCritica
     const idCarga = toast.loading(origen === "sheet" ? "Analizando archivo…" : "Subiendo archivo…");
 
     try {
-      let respBody: { tipo: Origen; url?: string; blobUrl?: string };
+      const formData = new FormData();
 
       if (origen === "sheet") {
-        respBody = { tipo: "sheet", url: url.trim() };
+        formData.set("tipo", "sheet");
+        formData.set("url", url.trim());
       } else if (archivo) {
         setNombreArchivo(archivo.name);
-        // Sube directo del navegador a Vercel Blob — evita el límite de
-        // tamaño de body de la función serverless, así que soporta archivos
-        // grandes sin problema, incluso sin multipart (multipart solo trocea
-        // la subida, no es lo que evita el límite de 4.5 MB).
-        //
-        // multipart: false a propósito — con multipart:true, las llamadas de
-        // coordinación van a vercel.com/api/blob/mpu, y en este proyecto ese
-        // endpoint específico está devolviendo respuestas sin cabecera CORS
-        // (bug reportado del lado de Vercel, no de este código). El SDK
-        // reintenta hasta 10 veces por llamada con backoff exponencial, por
-        // eso se quedaba "Subiendo…" colgado varios minutos antes de fallar.
-        // La subida sin multipart no pasa por ese endpoint y funciona bien
-        // para archivos de este tamaño (una planilla de Excel).
-        const blob = await upload(`admin-uploads/${Date.now()}-${archivo.name}`, archivo, {
-          access: "public",
-          handleUploadUrl: "/api/admin/upload-token",
-          multipart: false,
-        });
-        toast.loading("Analizando archivo…", { id: idCarga });
-        respBody = { tipo: origen, blobUrl: blob.url };
+        formData.set("tipo", origen);
+        formData.set("archivo", archivo);
       } else {
         toast.error("Seleccioná un archivo primero.", { id: idCarga });
         setEstado("inicial");
         return;
       }
 
-      const resp = await fetch("/api/admin/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(respBody),
-      });
+      const resp = await fetch("/api/admin/upload", { method: "POST", body: formData });
       const data = await resp.json();
 
       if (!resp.ok) {
@@ -133,7 +115,7 @@ export function CargadorCatalogo({ bloqueadoPorOtraOperacion, onOperacionCritica
       toast.success("Archivo analizado. Revisá el resumen antes de confirmar.", { id: idCarga });
     } catch (err) {
       const mensaje = err instanceof Error ? err.message : "No se pudo subir o procesar el archivo.";
-      logError("CargadorCatalogo.subir", err, pistaBlob(mensaje));
+      logError("CargadorCatalogo.subir", err);
       toast.error(mensaje, { id: idCarga });
       setEstado("inicial");
     }
@@ -332,8 +314,8 @@ export function CargadorCatalogo({ bloqueadoPorOtraOperacion, onOperacionCritica
               />
               {nombreArchivo && <p className="mt-1.5 text-xs text-ink-500">Seleccionado: {nombreArchivo}</p>}
               <p className="mt-1.5 text-xs text-ink-500">
-                Se sube directo a almacenamiento en la nube, sin límite práctico de tamaño — incluye archivos
-                grandes o con macros (.xlsm) sin problema.
+                Límite: {TAMANO_MAXIMO_BYTES / (1024 * 1024)} MB por archivo — soporta archivos con macros (.xlsm)
+                sin problema, siempre que pesen menos que eso.
               </p>
             </>
           )}
