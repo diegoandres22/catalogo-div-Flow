@@ -44,7 +44,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col bg-paper text-ink-900">
         {children}
         <Toaster
-          position="top-center"
+          position="bottom-center"
           richColors
           closeButton
           toastOptions={{
