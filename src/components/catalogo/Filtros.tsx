@@ -96,6 +96,49 @@ export function Filtros({ marcas, generos, colores, categorias, lineas, tallas, 
     set("tallas", activa ? valor.tallas.filter((x) => x !== t) : [...valor.tallas, t]);
   }
 
+  // "min={0}" en un <input type="number"> no impide tipear un negativo a
+  // mano — se recorta acá para que el filtro de precio nunca quede en un
+  // estado imposible.
+  function setPrecio(campo: "precioDesde" | "precioHasta", texto: string) {
+    if (texto === "") {
+      set(campo, "");
+      return;
+    }
+    const n = Number(texto);
+    set(campo, Number.isFinite(n) && n < 0 ? "0" : texto);
+  }
+
+  // Un chip por filtro activo, con su propio botón para quitar solo ese —
+  // así el comprador ve de un vistazo por qué el catálogo se achicó, y
+  // puede sacar un filtro puntual sin tener que limpiar todo de nuevo.
+  const chips: { id: string; etiqueta: string; quitar: () => void }[] = [];
+  if (valor.busqueda.trim()) {
+    chips.push({ id: "busqueda", etiqueta: `Buscar: "${valor.busqueda.trim()}"`, quitar: () => set("busqueda", "") });
+  }
+  if (valor.marca) chips.push({ id: "marca", etiqueta: `Marca: ${valor.marca}`, quitar: () => set("marca", "") });
+  if (valor.genero) chips.push({ id: "genero", etiqueta: `Género: ${valor.genero}`, quitar: () => set("genero", "") });
+  if (valor.color) chips.push({ id: "color", etiqueta: `Color: ${valor.color}`, quitar: () => set("color", "") });
+  if (valor.categoria) {
+    chips.push({ id: "categoria", etiqueta: `Categoría: ${valor.categoria}`, quitar: () => set("categoria", "") });
+  }
+  if (valor.linea) chips.push({ id: "linea", etiqueta: `Línea: ${valor.linea}`, quitar: () => set("linea", "") });
+  if (valor.precioDesde) {
+    chips.push({ id: "precioDesde", etiqueta: `Desde $${valor.precioDesde}`, quitar: () => set("precioDesde", "") });
+  }
+  if (valor.precioHasta) {
+    chips.push({ id: "precioHasta", etiqueta: `Hasta $${valor.precioHasta}`, quitar: () => set("precioHasta", "") });
+  }
+  if (valor.tallas.length > 0) {
+    chips.push({
+      id: "tallas",
+      etiqueta: `Talla${valor.tallas.length > 1 ? "s" : ""}: ${valor.tallas.join(", ")}`,
+      quitar: () => set("tallas", []),
+    });
+  }
+  if (valor.soloDisponibles) {
+    chips.push({ id: "soloDisponibles", etiqueta: "Solo con stock", quitar: () => set("soloDisponibles", false) });
+  }
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-3">
@@ -140,6 +183,33 @@ export function Filtros({ marcas, generos, colores, categorias, lineas, tallas, 
           )}
         </button>
       </div>
+
+      {chips.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {chips.map((chip) => (
+            <button
+              key={chip.id}
+              type="button"
+              onClick={chip.quitar}
+              className="inline-flex items-center gap-1 rounded-full border border-accent-600 bg-accent-100 px-2.5 py-1 text-xs font-medium text-accent-700 transition-colors hover:opacity-80"
+            >
+              {chip.etiqueta}
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          ))}
+          {chips.length > 1 && (
+            <button
+              type="button"
+              onClick={() => onChange(FILTROS_VACIOS)}
+              className="text-xs font-medium text-ink-500 underline-offset-2 hover:underline"
+            >
+              Limpiar todo
+            </button>
+          )}
+        </div>
+      )}
 
       <div id={idPanel} className={`${abierto ? "grid" : "hidden"} grid-cols-2 gap-3 sm:grid-cols-4 lg:grid lg:gap-4`}>
         <Select
@@ -193,8 +263,10 @@ export function Filtros({ marcas, generos, colores, categorias, lineas, tallas, 
               min={0}
               placeholder="$0"
               value={valor.precioDesde}
-              onChange={(e) => set("precioDesde", e.target.value)}
-              className="w-full rounded-lg border border-ink-200 bg-paper-raised px-3 py-2 text-sm focus:border-accent-600"
+              onChange={(e) => setPrecio("precioDesde", e.target.value)}
+              className={`w-full rounded-lg border px-3 py-2 text-sm focus:border-accent-600 ${
+                valor.precioDesde ? "border-accent-600 bg-accent-100 font-medium text-accent-700" : "border-ink-200 bg-paper-raised"
+              }`}
             />
           </div>
           <div className="flex-1">
@@ -208,8 +280,10 @@ export function Filtros({ marcas, generos, colores, categorias, lineas, tallas, 
               min={0}
               placeholder="$999"
               value={valor.precioHasta}
-              onChange={(e) => set("precioHasta", e.target.value)}
-              className="w-full rounded-lg border border-ink-200 bg-paper-raised px-3 py-2 text-sm focus:border-accent-600"
+              onChange={(e) => setPrecio("precioHasta", e.target.value)}
+              className={`w-full rounded-lg border px-3 py-2 text-sm focus:border-accent-600 ${
+                valor.precioHasta ? "border-accent-600 bg-accent-100 font-medium text-accent-700" : "border-ink-200 bg-paper-raised"
+              }`}
             />
           </div>
         </div>
@@ -241,7 +315,11 @@ export function Filtros({ marcas, generos, colores, categorias, lineas, tallas, 
           </div>
         )}
 
-        <label className="col-span-2 flex items-center gap-2 text-sm text-ink-900 sm:col-span-4">
+        <label
+          className={`col-span-2 flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm sm:col-span-4 ${
+            valor.soloDisponibles ? "bg-accent-100 font-medium text-accent-700" : "text-ink-900"
+          }`}
+        >
           <input
             type="checkbox"
             checked={valor.soloDisponibles}
@@ -251,16 +329,6 @@ export function Filtros({ marcas, generos, colores, categorias, lineas, tallas, 
           Solo mostrar productos con stock disponible
         </label>
       </div>
-
-      {activos > 0 && (
-        <button
-          type="button"
-          onClick={() => onChange(FILTROS_VACIOS)}
-          className="self-start text-sm font-medium text-accent-700 underline-offset-2 hover:underline"
-        >
-          Limpiar filtros
-        </button>
-      )}
     </div>
   );
 }
@@ -288,7 +356,9 @@ function Select({
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-ink-200 bg-paper-raised px-3 py-2 text-sm text-ink-900 focus:border-accent-600"
+        className={`w-full rounded-lg border px-3 py-2 text-sm focus:border-accent-600 ${
+          value ? "border-accent-600 bg-accent-100 font-medium text-accent-700" : "border-ink-200 bg-paper-raised text-ink-900"
+        }`}
       >
         <option value="">{todas}</option>
         {opciones.map((o) => (

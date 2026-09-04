@@ -11,14 +11,61 @@ import { esCalzado } from "@/lib/transform";
 
 const POR_PAGINA = 100;
 
-function unicosOrdenados(valores: (string | undefined)[]): string[] {
-  return Array.from(new Set(valores.filter((v): v is string => Boolean(v)))).sort((a, b) =>
-    a.localeCompare(b, "es"),
-  );
+type CampoFiltro = keyof ValorFiltros;
+
+// Único lugar con la lógica de "¿este producto pasa los filtros?" — la usan
+// tanto el listado final (sin omitir nada) como el cálculo de qué opciones
+// mostrar en cada Select (omitiendo el propio campo del Select, para saber
+// qué marcas/colores/etc. existen dado el RESTO de los filtros activos).
+function coincideConFiltros(p: Producto, filtros: ValorFiltros, omitir?: CampoFiltro): boolean {
+  const busqueda = filtros.busqueda.trim().toLowerCase();
+  if (busqueda) {
+    // Busca en modelo, marca, color y código SAP — no solo en el modelo,
+    // para que un comprador pueda tipear cualquiera de esos datos.
+    const campoBusqueda = `${p.modelo} ${p.marca} ${p.color} ${p.codigoSap}`.toLowerCase();
+    if (!campoBusqueda.includes(busqueda)) return false;
+  }
+  if (omitir !== "marca" && filtros.marca && p.marca !== filtros.marca) return false;
+  if (omitir !== "genero" && filtros.genero && p.genero !== filtros.genero) return false;
+  if (omitir !== "color" && filtros.color && p.color !== filtros.color) return false;
+  if (omitir !== "categoria" && filtros.categoria && p.rubro !== filtros.categoria) return false;
+  if (omitir !== "linea" && filtros.linea && p.linea !== filtros.linea) return false;
+  if (omitir !== "precioDesde" && omitir !== "precioHasta") {
+    const desde = filtros.precioDesde ? Number(filtros.precioDesde) : null;
+    const hasta = filtros.precioHasta ? Number(filtros.precioHasta) : null;
+    if (desde !== null && Number.isFinite(desde) && p.precio < desde) return false;
+    if (hasta !== null && Number.isFinite(hasta) && p.precio > hasta) return false;
+  }
+  if (omitir !== "tallas" && filtros.tallas.length > 0 && !p.tallas.some((t) => filtros.tallas.includes(t.talla))) {
+    return false;
+  }
+  if (omitir !== "soloDisponibles" && filtros.soloDisponibles && !tieneStock(p.tallas)) return false;
+  return true;
 }
 
-function tallasOrdenadas(valores: string[]): string[] {
-  return Array.from(new Set(valores)).sort((a, b) => a.localeCompare(b, "es", { numeric: true }));
+// Opciones de un Select "contextuales": solo las que realmente existen entre
+// los productos que cumplen el RESTO de los filtros activos (sin contar el
+// propio campo). Así, si ya elegiste Marca "Volpe", el Select de Color deja
+// de mostrar colores que Volpe no tiene — en vez de dejarlos ahí y que el
+// comprador elija una combinación que da 0 resultados sin entender por qué.
+// El valor ya elegido se mantiene siempre en la lista, aunque haya quedado
+// sin productos por otro filtro más nuevo, para no perder de vista qué
+// estaba seleccionado.
+function opcionesContextuales(
+  productos: Producto[],
+  filtros: ValorFiltros,
+  campo: CampoFiltro,
+  extraer: (p: Producto) => string | undefined,
+  valorActual: string,
+): string[] {
+  const conjunto = new Set(
+    productos
+      .filter((p) => coincideConFiltros(p, filtros, campo))
+      .map(extraer)
+      .filter((v): v is string => Boolean(v)),
+  );
+  if (valorActual) conjunto.add(valorActual);
+  return Array.from(conjunto).sort((a, b) => a.localeCompare(b, "es"));
 }
 
 export function CatalogoClient({ productos }: { productos: Producto[] }) {
@@ -31,16 +78,6 @@ export function CatalogoClient({ productos }: { productos: Producto[] }) {
     const p = Number(searchParamsIniciales.get("pagina"));
     return Number.isFinite(p) && p > 0 ? p : 1;
   });
-
-  const marcas = useMemo(() => unicosOrdenados(productos.map((p) => p.marca)), [productos]);
-  const generos = useMemo(() => unicosOrdenados(productos.map((p) => p.genero)), [productos]);
-  const colores = useMemo(() => unicosOrdenados(productos.map((p) => p.color)), [productos]);
-  const categorias = useMemo(() => unicosOrdenados(productos.map((p) => p.rubro)), [productos]);
-  const lineas = useMemo(() => unicosOrdenados(productos.map((p) => p.linea)), [productos]);
-  const tallas = useMemo(
-    () => tallasOrdenadas(productos.flatMap((p) => p.tallas.map((t) => t.talla))),
-    [productos],
-  );
 
   // Orden por defecto (sin búsqueda/filtros activos): calzado antes que
   // accesorios, luego por marca y modelo — para que el catálogo abra con una
@@ -56,30 +93,44 @@ export function CatalogoClient({ productos }: { productos: Producto[] }) {
     });
   }, [productos]);
 
-  const filtrados = useMemo(() => {
-    const busqueda = filtros.busqueda.trim().toLowerCase();
-    const desde = filtros.precioDesde ? Number(filtros.precioDesde) : null;
-    const hasta = filtros.precioHasta ? Number(filtros.precioHasta) : null;
-
-    return productosOrdenados.filter((p) => {
-      if (busqueda) {
-        // Busca en modelo, marca, color y código SAP — no solo en el modelo,
-        // para que un comprador pueda tipear cualquiera de esos datos.
-        const campoBusqueda = `${p.modelo} ${p.marca} ${p.color} ${p.codigoSap}`.toLowerCase();
-        if (!campoBusqueda.includes(busqueda)) return false;
-      }
-      if (filtros.marca && p.marca !== filtros.marca) return false;
-      if (filtros.genero && p.genero !== filtros.genero) return false;
-      if (filtros.color && p.color !== filtros.color) return false;
-      if (filtros.categoria && p.rubro !== filtros.categoria) return false;
-      if (filtros.linea && p.linea !== filtros.linea) return false;
-      if (desde !== null && Number.isFinite(desde) && p.precio < desde) return false;
-      if (hasta !== null && Number.isFinite(hasta) && p.precio > hasta) return false;
-      if (filtros.tallas.length > 0 && !p.tallas.some((t) => filtros.tallas.includes(t.talla))) return false;
-      if (filtros.soloDisponibles && !tieneStock(p.tallas)) return false;
-      return true;
-    });
+  // Cada Select recibe solo las opciones que existen dado el resto de los
+  // filtros ya activos (ver opcionesContextuales) — es lo que hace que,
+  // visualmente, "desaparezcan" categorías sin resultado en vez de quedar
+  // ahí invitando a una combinación vacía.
+  const marcas = useMemo(
+    () => opcionesContextuales(productosOrdenados, filtros, "marca", (p) => p.marca, filtros.marca),
+    [productosOrdenados, filtros],
+  );
+  const generos = useMemo(
+    () => opcionesContextuales(productosOrdenados, filtros, "genero", (p) => p.genero, filtros.genero),
+    [productosOrdenados, filtros],
+  );
+  const colores = useMemo(
+    () => opcionesContextuales(productosOrdenados, filtros, "color", (p) => p.color, filtros.color),
+    [productosOrdenados, filtros],
+  );
+  const categorias = useMemo(
+    () => opcionesContextuales(productosOrdenados, filtros, "categoria", (p) => p.rubro, filtros.categoria),
+    [productosOrdenados, filtros],
+  );
+  const lineas = useMemo(
+    () => opcionesContextuales(productosOrdenados, filtros, "linea", (p) => p.linea, filtros.linea),
+    [productosOrdenados, filtros],
+  );
+  const tallas = useMemo(() => {
+    const conjunto = new Set(
+      productosOrdenados
+        .filter((p) => coincideConFiltros(p, filtros, "tallas"))
+        .flatMap((p) => p.tallas.map((t) => t.talla)),
+    );
+    for (const t of filtros.tallas) conjunto.add(t);
+    return Array.from(conjunto).sort((a, b) => a.localeCompare(b, "es", { numeric: true }));
   }, [productosOrdenados, filtros]);
+
+  const filtrados = useMemo(
+    () => productosOrdenados.filter((p) => coincideConFiltros(p, filtros)),
+    [productosOrdenados, filtros],
+  );
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
   const paginaActual = Math.min(pagina, totalPaginas);
