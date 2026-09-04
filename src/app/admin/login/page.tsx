@@ -1,12 +1,10 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { logError } from "@/lib/logger";
 
 export default function PaginaLoginAdmin() {
-  const router = useRouter();
   const [password, setPassword] = useState("");
   const [cargando, setCargando] = useState(false);
 
@@ -26,8 +24,12 @@ export default function PaginaLoginAdmin() {
         return;
       }
       toast.success("Sesión iniciada");
-      router.push("/admin");
-      router.refresh();
+      // Navegación dura (no router.push/refresh): así evitamos que la
+      // caché del router del lado del cliente sirva una versión vieja de
+      // /admin, o que push() y refresh() se pisen entre sí — eso era lo
+      // que dejaba la pantalla "cargando" sin completar el redirect.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- intencional: navegación dura para evitar la caché del router tras el login
+      window.location.href = "/admin";
     } catch (err) {
       logError("PaginaLoginAdmin.onSubmit", err, "No se pudo llegar al servidor — revisá tu conexión a internet y probá de nuevo.");
       toast.error("No se pudo conectar con el servidor.");

@@ -191,7 +191,7 @@ export function Filtros({ marcas, generos, colores, categorias, lineas, tallas, 
               key={chip.id}
               type="button"
               onClick={chip.quitar}
-              className="inline-flex items-center gap-1 rounded-full border border-accent-600 bg-accent-100 px-2.5 py-1 text-xs font-medium text-accent-700 transition-colors hover:opacity-80"
+              className="inline-flex items-center gap-1 rounded-full border border-ink-900 bg-ink-900 px-2.5 py-1 text-xs font-medium text-white transition-colors hover:opacity-80"
             >
               {chip.etiqueta}
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
@@ -265,7 +265,7 @@ export function Filtros({ marcas, generos, colores, categorias, lineas, tallas, 
               value={valor.precioDesde}
               onChange={(e) => setPrecio("precioDesde", e.target.value)}
               className={`w-full rounded-lg border px-3 py-2 text-sm focus:border-accent-600 ${
-                valor.precioDesde ? "border-accent-600 bg-accent-100 font-medium text-accent-700" : "border-ink-200 bg-paper-raised"
+                valor.precioDesde ? "border-ink-900 bg-ink-900 font-medium text-white" : "border-ink-200 bg-paper-raised"
               }`}
             />
           </div>
@@ -282,7 +282,7 @@ export function Filtros({ marcas, generos, colores, categorias, lineas, tallas, 
               value={valor.precioHasta}
               onChange={(e) => setPrecio("precioHasta", e.target.value)}
               className={`w-full rounded-lg border px-3 py-2 text-sm focus:border-accent-600 ${
-                valor.precioHasta ? "border-accent-600 bg-accent-100 font-medium text-accent-700" : "border-ink-200 bg-paper-raised"
+                valor.precioHasta ? "border-ink-900 bg-ink-900 font-medium text-white" : "border-ink-200 bg-paper-raised"
               }`}
             />
           </div>
@@ -317,7 +317,7 @@ export function Filtros({ marcas, generos, colores, categorias, lineas, tallas, 
 
         <label
           className={`col-span-2 flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm sm:col-span-4 ${
-            valor.soloDisponibles ? "bg-accent-100 font-medium text-accent-700" : "text-ink-900"
+            valor.soloDisponibles ? "bg-ink-900 font-medium text-white" : "text-ink-900"
           }`}
         >
           <input
@@ -357,7 +357,7 @@ function Select({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className={`w-full rounded-lg border px-3 py-2 text-sm focus:border-accent-600 ${
-          value ? "border-accent-600 bg-accent-100 font-medium text-accent-700" : "border-ink-200 bg-paper-raised text-ink-900"
+          value ? "border-ink-900 bg-ink-900 font-medium text-white" : "border-ink-200 bg-paper-raised text-ink-900"
         }`}
       >
         <option value="">{todas}</option>
