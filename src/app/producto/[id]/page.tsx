@@ -133,16 +133,37 @@ export default async function PaginaProducto({ params, searchParams }: Props) {
 
             {esCalzado(producto.rubro) && producto.tallas.some((t) => t.porBulto) && (
               <div className="rounded-xl border border-ink-200 p-3">
-                <h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-ink-500">
-                  Distribución por bulto (talla · pares)
+                <h2 className="mb-2.5 text-xs font-medium uppercase tracking-wide text-ink-500">
+                  Distribución por bulto
                 </h2>
-                <ul className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-3">
-                  {producto.tallas.map((t) => (
-                    <li key={t.talla} className="flex items-baseline justify-between gap-2 text-ink-700">
-                      <span className="font-medium text-ink-900">{t.talla}</span>
-                      <span className="font-mono text-ink-500">{t.porBulto ?? "—"}</span>
-                    </li>
-                  ))}
+                {/* Antes era una grilla de números sueltos (talla y pares
+                    alternados en columnas) sin separación visual entre cada
+                    par de datos — se leía como una secuencia continua en vez
+                    de "esta talla trae esta cantidad". Cada talla es ahora su
+                    propia tarjeta con borde, y el número de pares se explica
+                    en palabras ("2 pares") en vez de un número aislado que
+                    obligaba a leer el encabezado para saber qué significaba. */}
+                <ul className="flex flex-wrap gap-2">
+                  {producto.tallas.map((t) => {
+                    const pares = t.porBulto ?? 0;
+                    const etiquetaPares = pares === 1 ? "par" : "pares";
+                    return (
+                      <li
+                        key={t.talla}
+                        className="flex min-w-14 flex-col items-center gap-0.5 rounded-lg border border-ink-200 bg-paper px-2.5 py-1.5"
+                      >
+                        <span className="text-sm font-semibold text-ink-900" aria-hidden="true">
+                          {t.talla}
+                        </span>
+                        <span className="text-[11px] text-ink-500" aria-hidden="true">
+                          {pares} {etiquetaPares}
+                        </span>
+                        <span className="sr-only">
+                          Talla {t.talla}: {pares} {etiquetaPares} por bulto
+                        </span>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}
