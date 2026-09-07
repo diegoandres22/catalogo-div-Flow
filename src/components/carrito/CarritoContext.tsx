@@ -7,11 +7,19 @@ import { logError } from "@/lib/logger";
 const CLAVE_CARRITO = "mesvol-carrito-v1";
 const CLAVE_COMPRADOR = "mesvol-comprador-v1";
 
+interface OpcionesAgregarItem {
+  // false para agregar "de paso" (ej. botón rápido en la tarjeta del
+  // catálogo) sin interrumpir al comprador con el panel del carrito —
+  // por defecto true, que es el comportamiento de siempre (detalle de
+  // producto: agregar SÍ abre el panel para confirmar visualmente).
+  abrirDrawer?: boolean;
+}
+
 interface CarritoContextValor {
   items: ItemCarrito[];
   comprador: DatosComprador;
   abierto: boolean;
-  agregarItem: (item: Omit<ItemCarrito, "cantidad">, cantidad: number) => void;
+  agregarItem: (item: Omit<ItemCarrito, "cantidad">, cantidad: number, opciones?: OpcionesAgregarItem) => void;
   actualizarCantidad: (productoId: string, cantidad: number) => void;
   quitarItem: (productoId: string) => void;
   vaciar: () => void;
@@ -72,7 +80,7 @@ export function CarritoProvider({ children }: { children: ReactNode }) {
     }
   }, [comprador, hidratado]);
 
-  const agregarItem = useCallback((item: Omit<ItemCarrito, "cantidad">, cantidad: number) => {
+  const agregarItem = useCallback((item: Omit<ItemCarrito, "cantidad">, cantidad: number, opciones?: OpcionesAgregarItem) => {
     setItems((prev) => {
       const existente = prev.find((i) => i.productoId === item.productoId);
       if (existente) {
@@ -80,7 +88,7 @@ export function CarritoProvider({ children }: { children: ReactNode }) {
       }
       return [...prev, { ...item, cantidad }];
     });
-    setAbierto(true);
+    if (opciones?.abrirDrawer ?? true) setAbierto(true);
   }, []);
 
   const actualizarCantidad = useCallback((productoId: string, cantidad: number) => {

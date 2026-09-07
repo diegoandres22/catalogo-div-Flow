@@ -49,7 +49,11 @@ export function BuscadorNavbar() {
   }
 
   return (
-    <form onSubmit={enviar} role="search">
+    // min-w-* asegura un input siempre usable (nunca colapsa a solo el
+    // ícono, incluso a 320px con el logo ya acortado en Header); max-w-* lo
+    // tope en tamaño "mediano" para que no invada el espacio del logo ni
+    // del carrito en pantallas anchas.
+    <form onSubmit={enviar} role="search" className="min-w-[104px] max-w-[220px] flex-1 sm:max-w-[280px]">
       <label htmlFor={id} className="sr-only">
         Buscar por modelo, marca, color o código SAP
       </label>
@@ -57,9 +61,9 @@ export function BuscadorNavbar() {
         <button
           type="submit"
           aria-label="Buscar en el catálogo"
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-500"
+          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-500"
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden="true">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden="true">
             <circle cx="11" cy="11" r="7" />
             <path d="M21 21l-4.35-4.35" strokeLinecap="round" />
           </svg>
@@ -67,10 +71,10 @@ export function BuscadorNavbar() {
         <input
           id={id}
           type="search"
-          placeholder={enCatalogo ? "Buscar modelo, marca, color o código…" : "Buscar en el catálogo…"}
+          placeholder={enCatalogo ? "Buscar…" : "Buscar en el catálogo…"}
           value={valor}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full rounded-full border border-ink-200 bg-paper-raised py-2 pl-10 pr-4 text-sm text-ink-900 placeholder:text-ink-500 focus:border-accent-600"
+          className="w-full rounded-full border border-ink-200 bg-paper-raised py-1.5 pl-8 pr-3 text-sm text-ink-900 placeholder:text-ink-500 focus:border-accent-600"
         />
       </div>
     </form>

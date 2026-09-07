@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ImagenProducto } from "./ImagenProducto";
+import { AgregarCarritoCard } from "./AgregarCarritoCard";
 import type { Producto } from "@/lib/types";
 import { formatearPrecio, tieneStock } from "@/lib/format";
 
@@ -19,10 +20,13 @@ export function ProductCard({
       : `/producto/${producto.id}`;
 
   return (
-    <Link
-      href={href}
-      className="group flex flex-col overflow-hidden rounded-2xl border border-ink-200 bg-paper-raised transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-ink-900/5"
-    >
+    // "group relative": ya no es el <Link> el contenedor — el link pasa a
+    // ser una capa transparente que cubre toda la tarjeta (ver más abajo),
+    // así el botón de "agregar" puede vivir POR ENCIMA de esa capa (z-index)
+    // en vez de anidado dentro de un <a> (HTML inválido y fuente de
+    // conflictos de click). Ningún otro componente pierde nada: el resto
+    // de la tarjeta sigue siendo 100% clickeable para ir al detalle.
+    <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-ink-200 bg-paper-raised transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-ink-900/5">
       <div className="relative aspect-[3/4] w-full">
         <ImagenProducto
           src={producto.fotos[0]}
@@ -40,6 +44,14 @@ export function ProductCard({
             Promoción
           </span>
         )}
+
+        {/* Esquina inferior de la FOTO (no de toda la tarjeta) — así nunca
+            pisa el precio/color de abajo. z-20: por encima del link de la
+            tarjeta (z-10), así el click acá nunca navega, sin necesitar
+            preventDefault. */}
+        <div className="absolute bottom-2 right-2 z-20">
+          <AgregarCarritoCard producto={producto} disponible={disponible} />
+        </div>
       </div>
       <div className="flex flex-1 flex-col gap-1 p-3 sm:p-4">
         <span className="text-xs font-medium uppercase tracking-wide text-ink-500">{producto.marca}</span>
@@ -49,6 +61,12 @@ export function ProductCard({
           <span className="text-xs text-ink-500">{producto.color}</span>
         </div>
       </div>
-    </Link>
+
+      <Link
+        href={href}
+        aria-label={`Ver ${producto.marca} ${producto.modelo}, ${producto.color} — ${formatearPrecio(producto.precio)}`}
+        className="absolute inset-0 z-10 rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2"
+      />
+    </div>
   );
 }
