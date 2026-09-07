@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ImagenProducto } from "./ImagenProducto";
 import { AgregarCarritoCard } from "./AgregarCarritoCard";
+import { CompartirCard } from "./CompartirCard";
 import type { Producto } from "@/lib/types";
 import { formatearPrecio, tieneStock } from "@/lib/format";
 
@@ -34,21 +35,28 @@ export function ProductCard({
           priority={prioridad}
           className="h-full w-full transition-transform duration-300 group-hover:scale-[1.04]"
         />
-        {!disponible && (
-          <span className="absolute left-2 top-2 rounded-full bg-ink-900/85 px-2.5 py-1 text-xs font-medium text-white">
-            Agotado
-          </span>
-        )}
-        {producto.promocion && (
-          <span className="absolute right-2 top-2 rounded-full bg-danger-600 px-2.5 py-1 text-xs font-medium text-white">
-            Promoción
-          </span>
+        {/* Las dos etiquetas de estado viven juntas arriba a la IZQUIERDA
+            (apiladas si se dan las dos a la vez) para dejar arriba a la
+            DERECHA libre exclusivamente para el botón de compartir — así
+            nunca compiten por la misma esquina. */}
+        {(!disponible || producto.promocion) && (
+          <div className="absolute left-2 top-2 z-10 flex flex-col items-start gap-1">
+            {!disponible && (
+              <span className="rounded-full bg-ink-900/85 px-2.5 py-1 text-xs font-medium text-white">Agotado</span>
+            )}
+            {producto.promocion && (
+              <span className="rounded-full bg-danger-600 px-2.5 py-1 text-xs font-medium text-white">Promoción</span>
+            )}
+          </div>
         )}
 
-        {/* Esquina inferior de la FOTO (no de toda la tarjeta) — así nunca
-            pisa el precio/color de abajo. z-20: por encima del link de la
-            tarjeta (z-10), así el click acá nunca navega, sin necesitar
-            preventDefault. */}
+        {/* Esquinas de la FOTO (no de toda la tarjeta) — así ninguno de los
+            dos botones pisa el precio/color de abajo. z-20: por encima del
+            link de la tarjeta (z-10), así el click acá nunca navega, sin
+            necesitar preventDefault. */}
+        <div className="absolute right-2 top-2 z-20">
+          <CompartirCard producto={producto} />
+        </div>
         <div className="absolute bottom-2 right-2 z-20">
           <AgregarCarritoCard producto={producto} disponible={disponible} />
         </div>

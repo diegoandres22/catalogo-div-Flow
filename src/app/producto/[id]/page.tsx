@@ -5,7 +5,7 @@ import { leerCatalogoPublico, leerGuiaTallas } from "@/lib/blob";
 import { Header } from "@/components/ui/Header";
 import { Footer } from "@/components/ui/Footer";
 import { Carrusel } from "@/components/detalle/Carrusel";
-import { SelectorTalla } from "@/components/detalle/SelectorTalla";
+import { TallasDisponibles } from "@/components/detalle/TallasDisponibles";
 import { AgregarCarrito } from "@/components/detalle/AgregarCarrito";
 import { BotonCompartir } from "@/components/detalle/BotonCompartir";
 import { formatearPrecio } from "@/lib/format";
@@ -134,7 +134,7 @@ export default async function PaginaProducto({ params, searchParams }: Props) {
               )}
             </div>
 
-            <SelectorTalla tallas={producto.tallas} />
+            <TallasDisponibles tallas={producto.tallas} />
 
             <AgregarCarrito producto={producto} />
 

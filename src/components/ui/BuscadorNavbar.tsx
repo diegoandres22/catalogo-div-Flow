@@ -49,11 +49,11 @@ export function BuscadorNavbar() {
   }
 
   return (
-    // min-w-* asegura un input siempre usable (nunca colapsa a solo el
-    // ícono, incluso a 320px con el logo ya acortado en Header); max-w-* lo
-    // tope en tamaño "mediano" para que no invada el espacio del logo ni
-    // del carrito en pantallas anchas.
-    <form onSubmit={enviar} role="search" className="min-w-[104px] max-w-[220px] flex-1 sm:max-w-[280px]">
+    // El ancho (piso y techo) ya lo define el track central del grid en
+    // Header — acá solo hay que llenarlo (w-full) y no oponer resistencia
+    // a que se achique (min-w-0, si no un <form> por defecto no se achica
+    // más allá del contenido, lo que rompería el centrado en mobile).
+    <form onSubmit={enviar} role="search" className="w-full min-w-0">
       <label htmlFor={id} className="sr-only">
         Buscar por modelo, marca, color o código SAP
       </label>
