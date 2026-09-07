@@ -7,12 +7,18 @@
 //                              a la espera de que confirme "Reemplazar catálogo"
 
 import { del, get, put } from "@vercel/blob";
-import type { Catalogo } from "./types";
+import type { Catalogo, GuiaTallas } from "./types";
 import { logError, pistaBlob } from "./logger";
 
 const CATALOGO_KEY = "catalogo.json";
 const BACKUP_KEY = "catalogo-backup.json";
 const PENDING_KEY = "catalogo-pending.json";
+
+// Guía de tallas: NO es parte del catálogo (no cambia con cada carga de
+// Excel) — es una config aparte que el admin sube una sola vez desde su
+// propio apartado del panel. Ver GuiaTallasConfig.tsx y
+// /api/admin/guia-tallas.
+const GUIA_TALLAS_KEY = "guia-tallas.json";
 
 // Archivo crudo (.csv/.xlsx) de la carga que generó el catálogo publicado —
 // para que el admin pueda descargar "el archivo que se usó" sin tener que
@@ -212,4 +218,30 @@ export async function revertirABackup(): Promise<Catalogo> {
   }
   await escribirJson(CATALOGO_KEY, backup);
   return backup;
+}
+
+/** Config actual de la guía de tallas (instrucciones + tabla). Nunca falta: si no se configuró aún, ambos campos vienen en null. */
+export async function leerGuiaTallas(): Promise<GuiaTallas> {
+  return (await leerJson<GuiaTallas>(GUIA_TALLAS_KEY)) ?? { instrucciones: null, tabla: null };
+}
+
+export async function guardarGuiaTallas(guia: GuiaTallas): Promise<void> {
+  await escribirJson(GUIA_TALLAS_KEY, guia);
+}
+
+/**
+ * Sube una imagen con acceso público (a diferencia del resto de las claves
+ * de este archivo, que son privadas) — la necesita el navegador del
+ * comprador para poder mostrarla directo en /producto/[id], sin pasar por
+ * el servidor. Se usa solo para las imágenes de la guía de tallas que el
+ * admin sube desde su panel (no para el catálogo, cuyas fotos ya vienen
+ * como URLs externas del Excel).
+ */
+export async function subirImagenGuiaTallas(nombre: string, bytes: ArrayBuffer, contentType: string): Promise<string> {
+  const resultado = await put(`guia-tallas/${nombre}`, bytes, {
+    access: "public",
+    addRandomSuffix: true,
+    contentType,
+  });
+  return resultado.url;
 }

@@ -330,7 +330,6 @@ export function transformarFilas(filas: FilaOrigen[], totalFilasOrigen: number):
       codigoSap: filasGrupo[0].itemCode,
       cantidadPorBulto: filasGrupo[0].cantidadPorBulto,
       fotos,
-      guiaTallas: [],
       tallas: tallasDelGrupo(filasGrupo),
     });
   }

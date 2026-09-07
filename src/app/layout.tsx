@@ -1,7 +1,10 @@
+import { Suspense } from "react";
 import type { Metadata, Viewport } from "next";
 import { Toaster } from "sonner";
 import { CarritoProvider } from "@/components/carrito/CarritoContext";
 import { CarritoDrawer } from "@/components/carrito/CarritoDrawer";
+import { BusquedaProvider } from "@/components/catalogo/BusquedaContext";
+import { ModoOffline } from "@/components/ui/ModoOffline";
 import "./globals.css";
 
 // Fuente del sistema en vez de next/font/google: carga instantánea, cero
@@ -44,10 +47,19 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="es" className="h-full antialiased">
       <body className="min-h-full flex flex-col bg-paper text-ink-900">
-        <CarritoProvider>
-          {children}
-          <CarritoDrawer />
-        </CarritoProvider>
+        <ModoOffline />
+        {/* Suspense: BusquedaProvider usa useSearchParams (para sembrar la
+            búsqueda desde "?q=") — sin este boundary, Next exige que TODA
+            la app sea dinámica, y rompe el prerender estático de páginas
+            como /admin/login que no tienen nada que ver con la búsqueda. */}
+        <Suspense fallback={null}>
+          <BusquedaProvider>
+            <CarritoProvider>
+              {children}
+              <CarritoDrawer />
+            </CarritoProvider>
+          </BusquedaProvider>
+        </Suspense>
         <Toaster
           position="bottom-center"
           richColors

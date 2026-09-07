@@ -32,9 +32,17 @@ export interface Producto {
   // (accesorios: se venden por unidad, no por bulto).
   cantidadPorBulto: number;
   fotos: string[];
-  guiaTallas: string[];
   tallas: TallaVariante[];
   materiales?: Materiales;
+}
+
+// La guía de tallas NO es un dato por producto: son 1-2 imágenes fijas
+// (instrucciones de cómo medir + tabla de equivalencias) que el admin sube
+// una sola vez desde el panel y se aplican a todo el calzado del catálogo.
+// Se guarda y se lee aparte del catálogo — ver lib/blob.ts.
+export interface GuiaTallas {
+  instrucciones: string | null;
+  tabla: string | null;
 }
 
 export interface Catalogo {

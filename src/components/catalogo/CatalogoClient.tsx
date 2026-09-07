@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { Producto } from "@/lib/types";
 import { Filtros, FILTROS_VACIOS, filtrosDesdeParams, paramsDesdeFiltros, type ValorFiltros } from "./Filtros";
+import { useBusqueda } from "./BusquedaContext";
 import { ProductGrid } from "./ProductGrid";
 import { EstadoVacio } from "./EstadoVacio";
 import { tieneStock } from "@/lib/format";
@@ -79,6 +80,13 @@ export function CatalogoClient({ productos }: { productos: Producto[] }) {
     return Number.isFinite(p) && p > 0 ? p : 1;
   });
 
+  // El texto de búsqueda ya no vive acá: el input se mudó al navbar
+  // (BuscadorNavbar), visible en cualquier parte del scroll, no solo arriba
+  // del catálogo — BusquedaContext es el punto compartido entre ambos. El
+  // resto de los filtros (marca, color, talla, etc.) sigue como antes.
+  const { busqueda, setBusqueda } = useBusqueda();
+  const filtrosCombinados = useMemo<ValorFiltros>(() => ({ ...filtros, busqueda }), [filtros, busqueda]);
+
   // Orden por defecto (sin búsqueda/filtros activos): calzado antes que
   // accesorios, luego por marca y modelo — para que el catálogo abra con una
   // vista curada en vez del orden crudo de la fila del Excel importado.
@@ -98,38 +106,39 @@ export function CatalogoClient({ productos }: { productos: Producto[] }) {
   // visualmente, "desaparezcan" categorías sin resultado en vez de quedar
   // ahí invitando a una combinación vacía.
   const marcas = useMemo(
-    () => opcionesContextuales(productosOrdenados, filtros, "marca", (p) => p.marca, filtros.marca),
-    [productosOrdenados, filtros],
+    () => opcionesContextuales(productosOrdenados, filtrosCombinados, "marca", (p) => p.marca, filtrosCombinados.marca),
+    [productosOrdenados, filtrosCombinados],
   );
   const generos = useMemo(
-    () => opcionesContextuales(productosOrdenados, filtros, "genero", (p) => p.genero, filtros.genero),
-    [productosOrdenados, filtros],
+    () => opcionesContextuales(productosOrdenados, filtrosCombinados, "genero", (p) => p.genero, filtrosCombinados.genero),
+    [productosOrdenados, filtrosCombinados],
   );
   const colores = useMemo(
-    () => opcionesContextuales(productosOrdenados, filtros, "color", (p) => p.color, filtros.color),
-    [productosOrdenados, filtros],
+    () => opcionesContextuales(productosOrdenados, filtrosCombinados, "color", (p) => p.color, filtrosCombinados.color),
+    [productosOrdenados, filtrosCombinados],
   );
   const categorias = useMemo(
-    () => opcionesContextuales(productosOrdenados, filtros, "categoria", (p) => p.rubro, filtros.categoria),
-    [productosOrdenados, filtros],
+    () =>
+      opcionesContextuales(productosOrdenados, filtrosCombinados, "categoria", (p) => p.rubro, filtrosCombinados.categoria),
+    [productosOrdenados, filtrosCombinados],
   );
   const lineas = useMemo(
-    () => opcionesContextuales(productosOrdenados, filtros, "linea", (p) => p.linea, filtros.linea),
-    [productosOrdenados, filtros],
+    () => opcionesContextuales(productosOrdenados, filtrosCombinados, "linea", (p) => p.linea, filtrosCombinados.linea),
+    [productosOrdenados, filtrosCombinados],
   );
   const tallas = useMemo(() => {
     const conjunto = new Set(
       productosOrdenados
-        .filter((p) => coincideConFiltros(p, filtros, "tallas"))
+        .filter((p) => coincideConFiltros(p, filtrosCombinados, "tallas"))
         .flatMap((p) => p.tallas.map((t) => t.talla)),
     );
-    for (const t of filtros.tallas) conjunto.add(t);
+    for (const t of filtrosCombinados.tallas) conjunto.add(t);
     return Array.from(conjunto).sort((a, b) => a.localeCompare(b, "es", { numeric: true }));
-  }, [productosOrdenados, filtros]);
+  }, [productosOrdenados, filtrosCombinados]);
 
   const filtrados = useMemo(
-    () => productosOrdenados.filter((p) => coincideConFiltros(p, filtros)),
-    [productosOrdenados, filtros],
+    () => productosOrdenados.filter((p) => coincideConFiltros(p, filtrosCombinados)),
+    [productosOrdenados, filtrosCombinados],
   );
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
@@ -144,20 +153,25 @@ export function CatalogoClient({ productos }: { productos: Producto[] }) {
   // tecla). replaceState para no llenar el historial con una entrada por
   // cada cambio de filtro.
   useEffect(() => {
-    const qs = paramsDesdeFiltros(filtros, paginaActual).toString();
+    const qs = paramsDesdeFiltros(filtrosCombinados, paginaActual).toString();
     const url = qs ? `/?${qs}` : "/";
     window.history.replaceState(null, "", url);
-  }, [filtros, paginaActual]);
+  }, [filtrosCombinados, paginaActual]);
 
   // Href al que vuelve cada tarjeta de producto — el catálogo completo con
   // los filtros y la página actuales, para que "Volver al catálogo" no
   // arranque de cero.
   const volver = useMemo(() => {
-    const qs = paramsDesdeFiltros(filtros, paginaActual).toString();
+    const qs = paramsDesdeFiltros(filtrosCombinados, paginaActual).toString();
     return qs ? `/?${qs}` : "/";
-  }, [filtros, paginaActual]);
+  }, [filtrosCombinados, paginaActual]);
 
+  // v.busqueda llega desde el chip "Buscar: …" de Filtros (su única forma de
+  // tocar la búsqueda ahora que el input se mudó al navbar) — se reenvía a
+  // BusquedaContext para que quede en el mismo lugar que si se hubiera
+  // borrado desde ahí.
   function cambiarFiltros(v: ValorFiltros) {
+    setBusqueda(v.busqueda);
     setFiltros(v);
     setPagina(1);
   }
@@ -176,7 +190,7 @@ export function CatalogoClient({ productos }: { productos: Producto[] }) {
         categorias={categorias}
         lineas={lineas}
         tallas={tallas}
-        valor={filtros}
+        valor={filtrosCombinados}
         onChange={cambiarFiltros}
       />
 

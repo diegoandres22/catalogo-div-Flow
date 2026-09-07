@@ -141,33 +141,9 @@ export function Filtros({ marcas, generos, colores, categorias, lineas, tallas, 
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-3">
-        <label htmlFor="busqueda-catalogo" className="sr-only">
-          Buscar por modelo, marca, color o código SAP
-        </label>
-        <div className="relative flex-1">
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.75"
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-500"
-            aria-hidden="true"
-          >
-            <circle cx="11" cy="11" r="7" />
-            <path d="M21 21l-4.35-4.35" strokeLinecap="round" />
-          </svg>
-          <input
-            id="busqueda-catalogo"
-            type="search"
-            placeholder="Buscar modelo, marca, color o código…"
-            value={valor.busqueda}
-            onChange={(e) => set("busqueda", e.target.value)}
-            className="w-full rounded-full border border-ink-200 bg-paper-raised py-2.5 pl-10 pr-4 text-sm text-ink-900 placeholder:text-ink-500 focus:border-accent-600"
-          />
-        </div>
+      {/* El input de búsqueda se mudó al navbar (BuscadorNavbar) — acá solo
+          queda el botón que despliega el resto de los filtros en mobile. */}
+      <div className="flex items-center justify-end gap-3">
         <button
           type="button"
           aria-expanded={abierto}

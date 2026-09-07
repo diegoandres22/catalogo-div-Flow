@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { leerCatalogoPublico } from "@/lib/blob";
+import { leerCatalogoPublico, leerGuiaTallas } from "@/lib/blob";
 import { Header } from "@/components/ui/Header";
 import { Footer } from "@/components/ui/Footer";
 import { Carrusel } from "@/components/detalle/Carrusel";
@@ -65,6 +65,13 @@ export default async function PaginaProducto({ params, searchParams }: Props) {
   // Solo se usa si viene del catálogo (empieza con "/"); cualquier otro
   // valor (link editado a mano, por ejemplo) cae al catálogo sin filtrar.
   const hrefVolver = volver && volver.startsWith("/") ? volver : "/";
+
+  // La guía de tallas es una config fija de todo el calzado del catálogo
+  // (no un dato por producto) — se administra aparte, desde el panel admin.
+  // Ver GuiaTallasConfig.tsx.
+  const guiaTallas = esCalzado(producto.rubro) ? await leerGuiaTallas() : { instrucciones: null, tabla: null };
+  const guiaPrincipal = guiaTallas.tabla ?? guiaTallas.instrucciones;
+  const guiaSecundaria = guiaTallas.tabla && guiaTallas.instrucciones ? guiaTallas.instrucciones : null;
 
   const materialesVisibles = Object.entries(producto.materiales ?? {}).filter(([, v]) => Boolean(v)) as [
     string,
@@ -172,18 +179,30 @@ export default async function PaginaProducto({ params, searchParams }: Props) {
               Código SAP: <span className="font-mono text-ink-700">{producto.codigoSap}</span>
             </p>
 
-            {producto.guiaTallas.length > 0 && (
-              <a
-                href={producto.guiaTallas[0]}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-accent-700 underline-offset-2 hover:underline"
-              >
-                Ver guía de tallas
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                  <path d="M7 17L17 7M7 7h10v10" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </a>
+            {guiaPrincipal && (
+              <div className="flex w-fit flex-wrap items-center gap-3">
+                <a
+                  href={guiaPrincipal}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-accent-700 underline-offset-2 hover:underline"
+                >
+                  Ver guía de tallas
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <path d="M7 17L17 7M7 7h10v10" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </a>
+                {guiaSecundaria && (
+                  <a
+                    href={guiaSecundaria}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-medium text-ink-500 underline-offset-2 hover:underline"
+                  >
+                    Cómo medir
+                  </a>
+                )}
+              </div>
             )}
 
             {materialesVisibles.length > 0 && (
