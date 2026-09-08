@@ -27,7 +27,14 @@ export function ProductCard({
     // en vez de anidado dentro de un <a> (HTML inválido y fuente de
     // conflictos de click). Ningún otro componente pierde nada: el resto
     // de la tarjeta sigue siendo 100% clickeable para ir al detalle.
-    <div className="group relative flex flex-col overflow-hidden rounded-2xl border border-ink-200 bg-paper-raised transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-ink-900/5">
+    //
+    // "isolate": crea un stacking context propio para la card — sin esto,
+    // el z-20 de los botones (compartir/agregar) competía directo contra
+    // el z-20 del <header sticky> (Header.tsx) y, al ser posteriores en el
+    // DOM, terminaban pintándose POR ENCIMA del navbar al hacer scroll.
+    // Con "isolate" el z-index interno de la card queda contenido adentro
+    // y nunca puede escapar por encima de nada externo.
+    <div className="group relative isolate flex flex-col overflow-hidden rounded-2xl border border-ink-200 bg-paper-raised transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-ink-900/5">
       <div className="relative aspect-[3/4] w-full">
         <ImagenProducto
           src={producto.fotos[0]}
