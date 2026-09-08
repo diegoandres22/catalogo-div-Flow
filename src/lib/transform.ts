@@ -5,16 +5,26 @@
 // ("Serie"), no una fila por talla individual. La cantidad de pares de cada
 // talla dentro de ese rango viene codificada en "Curva" (ej. Serie "35-40" +
 // Curva "1-2-3-3-2-1" = talla 35 trae 1 par por bulto, 36 trae 2, ... 40
-// trae 1 — 12 pares en total). Este módulo:
+// trae 1 — 12 pares en total). Este módulo agrupa en TRES niveles, no uno
+// solo:
 //  1) valida columnas obligatorias y datos por fila,
 //  2) expande Serie+Curva en tallas individuales (calzado) o usa una talla
-//     única "Único" para productos sin curva (accesorios),
-//  3) agrupa filas por (Modelo + Color) en "productos" de catálogo,
-//  4) deja fuera del catálogo (con motivo) los productos que no cumplen el
+//     única "Único" para productos sin curva (accesorios), calculando tanto
+//     el stock total ofertado como la porción que ya está físicamente en el
+//     almacén (ver "OnHand" más abajo),
+//  3) agrupa filas por (Modelo + Color + Serie) en "curvas" — un mismo
+//     modelo+color puede traer más de un rango de tallas (ej. "33-38" y
+//     "39-44"), y cada uno es un bulto comprable aparte, no se fusionan,
+//  4) agrupa esas curvas por (Modelo + Color) en "colores",
+//  5) agrupa esos colores por Modelo en el "producto" final del catálogo —
+//     un mismo modelo en dos colores ya no aparece como dos tarjetas
+//     duplicadas,
+//  6) deja fuera del catálogo (con motivo) los colores que no cumplen el
 //     mínimo de datos (p. ej. sin ninguna foto real), sin abortar el resto
-//     del import.
+//     del import; si un modelo se queda sin ningún color válido, desaparece
+//     solo (nunca llega a construirse).
 
-import type { Catalogo, ErrorImportacion, Producto, ResumenImportacion, TallaVariante } from "./types";
+import type { Catalogo, Curva, ErrorImportacion, Producto, ResumenImportacion, TallaVariante, VarianteColor } from "./types";
 
 export const COLUMNAS_OBLIGATORIAS = [
   "ItemCode",
@@ -30,17 +40,18 @@ export type FilaOrigen = Record<string, unknown>;
 interface FilaValidada {
   filaIndice: number; // número de fila "humano" (encabezado = fila 1, primera fila de datos = fila 2)
   itemCode: string;
+  codigoModelo: string;
   modelo: string;
   marca: string;
   genero: string;
   color: string;
   rubro: string;
   linea: string;
+  serie: string; // "" en no-calzado — identifica la curva dentro de modelo+color
   promocion: boolean;
   precio: number;
   fotos: string[];
   tallas: TallaVariante[];
-  cantidadPorBulto: number;
 }
 
 function textoLimpio(valor: unknown): string {
@@ -86,11 +97,13 @@ function aBooleanoSN(valor: unknown): boolean {
 
 /**
  * Expande "Serie" (rango de tallas, ej. "35-40") + "Curva" (pares por talla
- * dentro de ese rango, ej. "1-2-3-3-2-1") en tallas individuales.
+ * dentro de ese rango, ej. "1-2-3-3-2-1") en tallas individuales, repartiendo
+ * tanto el stock total ofertado ("Disponible a Ofertar") como el stock ya
+ * físico en almacén ("OnHand") en la misma proporción de la curva.
  * Devuelve null si el rango y la curva no calzan (misma cantidad de tallas
  * que de números en la curva) — se trata como dato inconsistente.
  */
-function expandirCurva(serie: string, curva: string, disponibleTotal: number): TallaVariante[] | null {
+function expandirCurva(serie: string, curva: string, disponibleTotal: number, onHandTotal: number): TallaVariante[] | null {
   const match = serie.match(/^(\d+)\s*-\s*(\d+)$/);
   if (!match) return null;
   const desde = Number(match[1]);
@@ -110,15 +123,16 @@ function expandirCurva(serie: string, curva: string, disponibleTotal: number): T
   const sumaCurva = partes.reduce((acc, n) => acc + n, 0);
   if (sumaCurva <= 0) return null;
 
-  // El stock disponible total del producto se reparte entre tallas según la
-  // proporción de la curva — es una estimación (el SAP no trae stock por
-  // talla individual), pero es más informativa que asumir "todas
-  // disponibles por igual" cuando el stock ya empezó a bajar.
-  return tallasNums.map((talla, i) => ({
-    talla: String(talla),
-    porBulto: partes[i],
-    disponible: Math.floor((disponibleTotal * partes[i]) / sumaCurva),
-  }));
+  // El stock se reparte entre tallas según la proporción de la curva — es
+  // una estimación (el SAP no trae stock por talla individual), pero es más
+  // informativa que asumir "todas disponibles por igual" cuando el stock ya
+  // empezó a bajar. disponibleFisico nunca supera a disponible (el físico no
+  // puede ser mayor que lo ofertado, aunque el dato crudo lo sugiera).
+  return tallasNums.map((talla, i) => {
+    const disponible = Math.floor((disponibleTotal * partes[i]) / sumaCurva);
+    const disponibleFisico = Math.min(disponible, Math.floor((onHandTotal * partes[i]) / sumaCurva));
+    return { talla: String(talla), porBulto: partes[i], disponible, disponibleFisico };
+  });
 }
 
 /** Valida columnas obligatorias contra el encabezado detectado. */
@@ -165,8 +179,22 @@ function validarFilas(filas: FilaOrigen[]): { validas: FilaValidada[]; errores: 
     const disponibleRaw = aNumero(fila["Disponible a Ofertar"]);
     const disponibleTotal = disponibleRaw !== null && disponibleRaw > 0 ? Math.floor(disponibleRaw) : 0;
 
+    // "OnHand": stock físico ya en almacén (columna opcional). Si la columna
+    // no viene en el archivo (import previo a este campo, o plantilla
+    // vieja), no hay forma de distinguir físico de en tránsito — se asume
+    // que todo lo ofertado ya está físico, igual que el comportamiento antes
+    // de este campo. Si la columna SÍ viene pero la celda de esta fila está
+    // vacía, se asume 0 físico (mismo criterio que "Disponible a Ofertar").
+    const onHandPresente = "OnHand" in fila;
+    const onHandRaw = aNumero(fila["OnHand"]);
+    const onHandTotal = onHandPresente
+      ? onHandRaw !== null && onHandRaw > 0
+        ? Math.floor(onHandRaw)
+        : 0
+      : disponibleTotal;
+
     let tallas: TallaVariante[];
-    let cantidadPorBulto: number;
+    let serieNormalizada = "";
 
     if (esCalzado(rubro)) {
       const serie = textoLimpio(fila["U_PX_Serie"]);
@@ -175,7 +203,7 @@ function validarFilas(filas: FilaOrigen[]): { validas: FilaValidada[]; errores: 
         errores.push({ fila: filaIndice, modelo, color, motivo: "Calzado sin 'U_PX_Serie'/'U_PX_Curva' (rango y curva de tallas)" });
         return;
       }
-      const expandidas = expandirCurva(serie, curva, disponibleTotal);
+      const expandidas = expandirCurva(serie, curva, disponibleTotal, onHandTotal);
       if (!expandidas) {
         errores.push({
           fila: filaIndice,
@@ -186,12 +214,11 @@ function validarFilas(filas: FilaOrigen[]): { validas: FilaValidada[]; errores: 
         return;
       }
       tallas = expandidas;
-      cantidadPorBulto = expandidas.reduce((acc, t) => acc + (t.porBulto ?? 0), 0);
+      serieNormalizada = serie;
     } else {
       // Accesorios y demás rubros sin curva de tallas: una única variante,
       // se venden por unidad.
-      tallas = [{ talla: "Único", disponible: disponibleTotal }];
-      cantidadPorBulto = 1;
+      tallas = [{ talla: "Único", disponible: disponibleTotal, disponibleFisico: Math.min(disponibleTotal, onHandTotal) }];
     }
 
     const fotosDeChasea = separarUrls(fila["U_LinkImagenChasea"]);
@@ -200,17 +227,18 @@ function validarFilas(filas: FilaOrigen[]): { validas: FilaValidada[]; errores: 
     validas.push({
       filaIndice,
       itemCode,
+      codigoModelo: textoLimpio(fila["#Modelo"]),
       modelo,
       marca: textoLimpio(fila["U_PX_Marca"]),
       genero: textoLimpio(fila["U_PX_Genero"]),
       color,
       rubro,
       linea: textoLimpio(fila["U_PX_Linea"]),
+      serie: serieNormalizada,
       promocion: aBooleanoSN(fila["U_Promocion"]),
       precio,
       fotos,
       tallas,
-      cantidadPorBulto,
     });
   });
 
@@ -232,14 +260,19 @@ function precioDelGrupo(filas: FilaValidada[]): number {
   return mejor;
 }
 
+/**
+ * Combina las filas de UNA MISMA curva (mismo modelo+color+serie) en su
+ * lista final de tallas. Normalmente es una sola fila (el SAP trae una fila
+ * por curva), pero si el archivo trae dos filas idénticas en esa curva
+ * (duplicado real de datos), se combinan quedándose con la variante más
+ * informativa por talla (mayor disponibilidad) en vez de sumarlas o
+ * descartar una arbitrariamente.
+ */
 function tallasDelGrupo(filas: FilaValidada[]): TallaVariante[] {
   const porTalla = new Map<string, TallaVariante>();
   for (const f of filas) {
     for (const t of f.tallas) {
       const actual = porTalla.get(t.talla);
-      // Si la talla se repite (el mismo modelo+color trae más de un rango
-      // que se solapa), nos quedamos con la variante más informativa para
-      // el mayorista: mayor disponibilidad.
       if (!actual || t.disponible > actual.disponible) {
         porTalla.set(t.talla, t);
       }
@@ -288,53 +321,142 @@ export interface ResultadoTransformacion {
 export function transformarFilas(filas: FilaOrigen[], totalFilasOrigen: number): ResultadoTransformacion {
   const { validas, errores } = validarFilas(filas);
 
-  const grupos = new Map<string, FilaValidada[]>();
+  // Nivel 1 — modelo+color+serie: cada fila validada YA es una curva (una
+  // fila del SAP = un rango de tallas de un color). Se agrupa igual por si
+  // el archivo trae dos filas para exactamente el mismo rango (duplicado de
+  // datos) — en ese caso se combinan con tallasDelGrupo en vez de crear dos
+  // curvas idénticas.
+  const gruposCurva = new Map<string, FilaValidada[]>();
   for (const f of validas) {
-    const clave = `${f.modelo} ${f.color}`;
-    const arr = grupos.get(clave);
+    const clave = `${f.modelo} ${f.color} ${f.serie}`;
+    const arr = gruposCurva.get(clave);
     if (arr) arr.push(f);
-    else grupos.set(clave, [f]);
+    else gruposCurva.set(clave, [f]);
   }
 
-  const generarId = idsUnicos();
-  const productos: Producto[] = [];
+  interface CurvaConstruida {
+    modelo: string;
+    color: string;
+    curva: Curva;
+    filas: FilaValidada[];
+  }
 
-  for (const [, filasGrupo] of grupos) {
-    const { modelo, color } = filasGrupo[0];
-    const fotos = dedupPreservandoOrden(filasGrupo.flatMap((f) => f.fotos));
+  const curvasConstruidas: CurvaConstruida[] = [];
+  for (const [, filasCurva] of gruposCurva) {
+    const { modelo, color, rubro, serie } = filasCurva[0];
+    const tallas = tallasDelGrupo(filasCurva);
+    const cantidadPorBulto = esCalzado(rubro) ? tallas.reduce((acc, t) => acc + (t.porBulto ?? 0), 0) : 1;
+
+    curvasConstruidas.push({
+      modelo,
+      color,
+      filas: filasCurva,
+      curva: {
+        id: slugify(serie) || "unico",
+        rango: esCalzado(rubro) ? serie : "Único",
+        codigoSap: filasCurva[0].itemCode,
+        cantidadPorBulto,
+        tallas,
+      },
+    });
+  }
+
+  // Nivel 2 — modelo+color: junta todas las curvas de un mismo color. Si el
+  // color se queda sin ninguna foto real entre todas sus curvas, se excluye
+  // acá (no todo el modelo — otro color del mismo modelo puede sí tener
+  // foto y seguir viéndose en el catálogo).
+  const gruposColor = new Map<string, CurvaConstruida[]>();
+  for (const c of curvasConstruidas) {
+    const clave = `${c.modelo} ${c.color}`;
+    const arr = gruposColor.get(clave);
+    if (arr) arr.push(c);
+    else gruposColor.set(clave, [c]);
+  }
+
+  interface ColorConstruido {
+    modelo: string;
+    variante: VarianteColor;
+    filas: FilaValidada[];
+  }
+
+  const coloresConstruidos: ColorConstruido[] = [];
+  for (const [, gruposDeColor] of gruposColor) {
+    const { modelo, color } = gruposDeColor[0];
+    const filasColor = gruposDeColor.flatMap((g) => g.filas);
+    const fotos = dedupPreservandoOrden(filasColor.flatMap((f) => f.fotos));
 
     if (fotos.length === 0) {
       errores.push({
         fila: null,
         modelo,
         color,
-        motivo: "Producto sin foto (Status Imagen distinto de 'Con Foto') — excluido del catálogo",
+        motivo: "Color sin foto (Status Imagen distinto de 'Con Foto') — excluido del catálogo",
       });
       continue;
     }
 
-    const primeraConMarca = filasGrupo.find((f) => f.marca) ?? filasGrupo[0];
-    const primeraConGenero = filasGrupo.find((f) => f.genero) ?? filasGrupo[0];
-    const primeraConLinea = filasGrupo.find((f) => f.linea) ?? filasGrupo[0];
+    // Curvas ordenadas por inicio de rango (35-40 antes que 41-44); "Único"
+    // (accesorios) no necesita orden, siempre es una sola.
+    const curvas = gruposDeColor
+      .map((g) => g.curva)
+      .sort((a, b) => {
+        const na = Number(a.rango.split("-")[0]);
+        const nb = Number(b.rango.split("-")[0]);
+        if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
+        return a.rango.localeCompare(b.rango, "es");
+      });
 
-    productos.push({
-      id: generarId(slugify(`${modelo}-${color}`)),
+    coloresConstruidos.push({
       modelo,
-      marca: primeraConMarca.marca,
-      genero: primeraConGenero.genero,
-      color,
-      rubro: filasGrupo[0].rubro,
-      linea: primeraConLinea.linea || undefined,
-      precio: precioDelGrupo(filasGrupo),
-      promocion: filasGrupo.some((f) => f.promocion),
-      codigoSap: filasGrupo[0].itemCode,
-      cantidadPorBulto: filasGrupo[0].cantidadPorBulto,
-      fotos,
-      tallas: tallasDelGrupo(filasGrupo),
+      filas: filasColor,
+      variante: {
+        color,
+        precio: precioDelGrupo(filasColor),
+        promocion: filasColor.some((f) => f.promocion),
+        fotos,
+        curvas,
+      },
     });
   }
 
-  const totalVariantes = productos.reduce((acc, p) => acc + p.tallas.length, 0);
+  // Nivel 3 — modelo: un producto del catálogo por modelo, con todos sus
+  // colores adentro (ya no una tarjeta duplicada por cada color).
+  const gruposModelo = new Map<string, ColorConstruido[]>();
+  for (const c of coloresConstruidos) {
+    const arr = gruposModelo.get(c.modelo);
+    if (arr) arr.push(c);
+    else gruposModelo.set(c.modelo, [c]);
+  }
+
+  const generarId = idsUnicos();
+  const productos: Producto[] = [];
+
+  for (const [modelo, gruposDeModelo] of gruposModelo) {
+    const filasModelo = gruposDeModelo.flatMap((g) => g.filas);
+    const primeraConMarca = filasModelo.find((f) => f.marca) ?? filasModelo[0];
+    const primeraConGenero = filasModelo.find((f) => f.genero) ?? filasModelo[0];
+    const primeraConLinea = filasModelo.find((f) => f.linea) ?? filasModelo[0];
+    const primeraConCodigoModelo = filasModelo.find((f) => f.codigoModelo) ?? filasModelo[0];
+
+    const colores = gruposDeModelo.map((g) => g.variante).sort((a, b) => a.color.localeCompare(b.color, "es"));
+
+    productos.push({
+      id: generarId(slugify(modelo)),
+      modelo,
+      marca: primeraConMarca.marca,
+      genero: primeraConGenero.genero,
+      rubro: filasModelo[0].rubro,
+      linea: primeraConLinea.linea || undefined,
+      codigoModelo: primeraConCodigoModelo.codigoModelo || undefined,
+      colores,
+    });
+  }
+
+  const totalVariantes = productos.reduce(
+    (acc, p) =>
+      acc + p.colores.reduce((acc2, c) => acc2 + c.curvas.reduce((acc3, curva) => acc3 + curva.tallas.length, 0), 0),
+    0,
+  );
 
   const resumen: ResumenImportacion = {
     ok: productos.length > 0,

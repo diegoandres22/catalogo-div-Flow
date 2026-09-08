@@ -1,13 +1,30 @@
 import Link from "next/link";
 import Image from "next/image";
+import type { ConfigSitio } from "@/lib/types";
 
 const MARCAS = [
   { nombre: "Volpe", src: "/marcas/volpe.png", ancho: 783, alto: 161 },
   { nombre: "Vita Kids", src: "/marcas/vitakids.png", ancho: 976, alto: 346 },
-  { nombre: "Kriza", src: "/marcas/kriza.svg", ancho: 1001, alto: 275 },
+  { nombre: "Kriza", src: "/marcas/kriza.png", ancho: 1001, alto: 275 },
 ];
 
-export function Footer() {
+// Texto por defecto — se muestra mientras el admin no configure nada
+// distinto desde /admin/configuracion (ConfigSitio en Vercel Blob), y
+// también en las pantallas que no pueden leer esa config (ver "config" más
+// abajo): error.tsx es un Client Component (no puede hacer fetch a Blob), y
+// los loading.tsx/not-found.tsx son vistas de paso donde no vale la pena
+// pagar esa lectura extra — solo lo hacen las páginas de contenido real.
+const DESCRIPCION_DEFECTO =
+  "Fábrica de calzado venezolana con más de 70 años de trayectoria, negocio familiar de tres generaciones. Capacidad instalada de 192.000 pares al mes.";
+const RIF_DEFECTO = "J-30242134-9";
+
+interface Props {
+  config?: Pick<ConfigSitio, "descripcionEmpresa" | "rif"> | null;
+}
+
+export function Footer({ config }: Props = {}) {
+  const descripcion = config?.descripcionEmpresa?.trim() || DESCRIPCION_DEFECTO;
+  const rif = config?.rif?.trim() || RIF_DEFECTO;
   const anio = new Date().getFullYear();
 
   return (
@@ -15,10 +32,7 @@ export function Footer() {
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:grid-cols-3 sm:px-6">
         <div>
           <h2 className="text-sm font-semibold text-ink-900">Calzados Mesvol</h2>
-          <p className="mt-2 text-sm leading-relaxed text-ink-500">
-            Fábrica de calzado venezolana con más de 70 años de trayectoria, negocio familiar de tres generaciones.
-            Capacidad instalada de 192.000 pares al mes.
-          </p>
+          <p className="mt-2 text-sm leading-relaxed text-ink-500">{descripcion}</p>
         </div>
 
         <div>
@@ -40,7 +54,7 @@ export function Footer() {
         <div>
           <h2 className="text-sm font-semibold text-ink-900">Contacto</h2>
           <p className="mt-2 text-sm text-ink-500">Calzados Mesvol, C.A.</p>
-          <p className="text-sm text-ink-500">RIF J-30242134-9</p>
+          <p className="text-sm text-ink-500">RIF {rif}</p>
         </div>
       </div>
 

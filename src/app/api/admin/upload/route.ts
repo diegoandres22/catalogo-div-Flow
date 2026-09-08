@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { guardarCatalogoPendiente, guardarArchivoOriginalPendiente, limpiarArchivoOriginalPendiente } from "@/lib/blob";
+import {
+  guardarCatalogoPendiente,
+  guardarArchivoOriginalPendiente,
+  guardarResumenPendiente,
+  leerCatalogoPublico,
+  limpiarArchivoOriginalPendiente,
+} from "@/lib/blob";
 import { obtenerCSVDesdeURL, parsearCSV, parsearXLSX, type ArchivoParseado } from "@/lib/parseOrigen";
 import { transformarFilas, validarColumnas } from "@/lib/transform";
+import { compararCatalogos } from "@/lib/diffCatalogo";
 import type { ResumenImportacion } from "@/lib/types";
 import { logError, pistaBlob } from "@/lib/logger";
 
@@ -100,6 +107,9 @@ export async function POST(request: NextRequest) {
     // Se guarda como "pendiente": el admin todavía tiene que confirmar el
     // reemplazo. El catálogo publicado no se toca hasta ese momento.
     await guardarCatalogoPendiente(catalogo);
+    // El resumen (errores incluidos) se guarda aparte porque Catalogo no
+    // los trae — confirmarReemplazoCatalogo lo lee para armar el historial.
+    await guardarResumenPendiente(resumen);
 
     // Igual que el catálogo, el archivo crudo (si vino de csv/xlsx) queda
     // "pendiente" hasta confirmar — se promueve junto con el catálogo en
@@ -116,7 +126,14 @@ export async function POST(request: NextRequest) {
       await limpiarArchivoOriginalPendiente();
     }
 
-    return NextResponse.json({ ok: true, resumen });
+    // Comparación contra el catálogo YA publicado (no contra el pendiente
+    // de una carga anterior sin confirmar) — así "Nuevos"/"Se dan de
+    // baja"/"Cambio de precio" siempre reflejan lo que de verdad cambiaría
+    // si se confirma esta carga ahora mismo.
+    const publicado = await leerCatalogoPublico();
+    const diff = compararCatalogos(publicado, catalogo);
+
+    return NextResponse.json({ ok: true, resumen, diff });
   } catch (err) {
     const mensaje = err instanceof Error ? err.message : "Error inesperado al procesar el archivo.";
     logError("api/admin/upload", err, pistaBlob(mensaje));

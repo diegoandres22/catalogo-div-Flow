@@ -108,6 +108,25 @@ export const COLUMNAS_GUIA: ColumnaGuia[] = [
     siFalta: "Se asume 0 — todas las tallas de esa fila se muestran agotadas.",
   },
   {
+    columna: "OnHand",
+    obligatoria: false,
+    tipo: "numero",
+    ejemplo: "90",
+    descripcion:
+      "Stock físico ya en el almacén (no en tránsito/China). Junto con \"Disponible a Ofertar\" permite distinguir \"hay ya\" de \"viene en camino\", sin dejar de ofertar lo que está en tránsito.",
+    siFalta:
+      "No se puede distinguir stock físico de en tránsito — se asume que todo el stock ofertado ya está físico (mismo comportamiento que antes de esta columna).",
+  },
+  {
+    columna: "#Modelo",
+    obligatoria: false,
+    tipo: "texto",
+    ejemplo: "2103",
+    descripcion:
+      "Código corto interno del modelo (distinto de U_PX_Modelo, que es el nombre). Se muestra junto al Código SAP en el detalle del producto.",
+    siFalta: "El producto se importa igual, sin código de modelo visible.",
+  },
+  {
     columna: "U_PX_Genero",
     obligatoria: false,
     tipo: "texto",

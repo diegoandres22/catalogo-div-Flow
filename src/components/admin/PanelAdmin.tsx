@@ -4,7 +4,6 @@ import { useState } from "react";
 import { CargadorCatalogo } from "./CargadorCatalogo";
 import { RevertirRespaldo } from "./RevertirRespaldo";
 import { DescargarArchivoOriginal } from "./DescargarArchivoOriginal";
-import { GuiaTallasConfig } from "./GuiaTallasConfig";
 
 // "Reemplazar catálogo" y "Revertir al respaldo" escriben el mismo archivo
 // (catalogo.json) sin ningún candado del lado del servidor — si se disparan
@@ -29,7 +28,6 @@ export function PanelAdmin() {
         onOperacionCriticaChange={setOperacionCriticaEnCurso}
       />
       <DescargarArchivoOriginal />
-      <GuiaTallasConfig />
     </>
   );
 }

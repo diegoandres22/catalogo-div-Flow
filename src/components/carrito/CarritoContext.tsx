@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { COMPRADOR_VACIO, type DatosComprador, type ItemCarrito } from "@/lib/carrito";
+import { COMPRADOR_VACIO, numeroWhatsAppVentas, type DatosComprador, type ItemCarrito } from "@/lib/carrito";
 import { logError } from "@/lib/logger";
 
 const CLAVE_CARRITO = "mesvol-carrito-v1";
@@ -19,9 +19,15 @@ interface CarritoContextValor {
   items: ItemCarrito[];
   comprador: DatosComprador;
   abierto: boolean;
+  // Número de WhatsApp de ventas ya resuelto: el que haya configurado el
+  // admin desde /admin/configuracion (ConfigSitio, vía prop numeroWhatsApp
+  // de CarritoProvider) o, si no configuró ninguno, el de la variable de
+  // entorno NEXT_PUBLIC_WHATSAPP_VENTAS. null si ninguno de los dos está
+  // disponible — ver CarritoDrawer, que deshabilita el envío en ese caso.
+  numeroWhatsApp: string | null;
   agregarItem: (item: Omit<ItemCarrito, "cantidad">, cantidad: number, opciones?: OpcionesAgregarItem) => void;
-  actualizarCantidad: (productoId: string, cantidad: number) => void;
-  quitarItem: (productoId: string) => void;
+  actualizarCantidad: (itemId: string, cantidad: number) => void;
+  quitarItem: (itemId: string) => void;
   vaciar: () => void;
   setComprador: (comprador: DatosComprador) => void;
   abrir: () => void;
@@ -40,7 +46,16 @@ function leerDeStorage<T>(clave: string, porDefecto: T): T {
   }
 }
 
-export function CarritoProvider({ children }: { children: ReactNode }) {
+interface Props {
+  children: ReactNode;
+  // Resuelto en el servidor (RootLayout, a partir de ConfigSitio) y pasado
+  // como prop en vez de leerse acá — este componente es "use client" y
+  // ConfigSitio vive en Vercel Blob, del lado del servidor. null cuando el
+  // admin no configuró ninguno todavía (cae al de la variable de entorno).
+  numeroWhatsApp: string | null;
+}
+
+export function CarritoProvider({ children, numeroWhatsApp: numeroConfigurado }: Props) {
   // Arranca vacío en el server y en el primer render del cliente (evita
   // desajustes de hidratación); el contenido real de localStorage se carga
   // recién en el useEffect, que solo corre en el navegador.
@@ -82,36 +97,42 @@ export function CarritoProvider({ children }: { children: ReactNode }) {
 
   const agregarItem = useCallback((item: Omit<ItemCarrito, "cantidad">, cantidad: number, opciones?: OpcionesAgregarItem) => {
     setItems((prev) => {
-      const existente = prev.find((i) => i.productoId === item.productoId);
+      // itemId (producto+color+curva) es la identidad de la línea — dos
+      // colores o dos curvas del mismo producto son líneas separadas, no se
+      // mergean entre sí (ver lib/carrito.ts).
+      const existente = prev.find((i) => i.itemId === item.itemId);
       if (existente) {
-        return prev.map((i) => (i.productoId === item.productoId ? { ...i, cantidad: i.cantidad + cantidad } : i));
+        return prev.map((i) => (i.itemId === item.itemId ? { ...i, cantidad: i.cantidad + cantidad } : i));
       }
       return [...prev, { ...item, cantidad }];
     });
     if (opciones?.abrirDrawer ?? true) setAbierto(true);
   }, []);
 
-  const actualizarCantidad = useCallback((productoId: string, cantidad: number) => {
+  const actualizarCantidad = useCallback((itemId: string, cantidad: number) => {
     setItems((prev) =>
-      cantidad <= 0
-        ? prev.filter((i) => i.productoId !== productoId)
-        : prev.map((i) => (i.productoId === productoId ? { ...i, cantidad } : i)),
+      cantidad <= 0 ? prev.filter((i) => i.itemId !== itemId) : prev.map((i) => (i.itemId === itemId ? { ...i, cantidad } : i)),
     );
   }, []);
 
-  const quitarItem = useCallback((productoId: string) => {
-    setItems((prev) => prev.filter((i) => i.productoId !== productoId));
+  const quitarItem = useCallback((itemId: string) => {
+    setItems((prev) => prev.filter((i) => i.itemId !== itemId));
   }, []);
 
   const vaciar = useCallback(() => setItems([]), []);
   const abrir = useCallback(() => setAbierto(true), []);
   const cerrar = useCallback(() => setAbierto(false), []);
 
+  // El de ConfigSitio (panel admin) manda; si el admin no configuró ninguno
+  // todavía, cae al de la variable de entorno — mismo respaldo de siempre.
+  const numeroWhatsApp = numeroConfigurado ?? numeroWhatsAppVentas();
+
   const valor = useMemo<CarritoContextValor>(
     () => ({
       items,
       comprador,
       abierto,
+      numeroWhatsApp,
       agregarItem,
       actualizarCantidad,
       quitarItem,
@@ -120,7 +141,7 @@ export function CarritoProvider({ children }: { children: ReactNode }) {
       abrir,
       cerrar,
     }),
-    [items, comprador, abierto, agregarItem, actualizarCantidad, quitarItem, vaciar, abrir, cerrar],
+    [items, comprador, abierto, numeroWhatsApp, agregarItem, actualizarCantidad, quitarItem, vaciar, abrir, cerrar],
   );
 
   return <CarritoContext.Provider value={valor}>{children}</CarritoContext.Provider>;

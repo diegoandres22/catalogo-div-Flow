@@ -3,7 +3,7 @@ import { ImagenProducto } from "./ImagenProducto";
 import { AgregarCarritoCard } from "./AgregarCarritoCard";
 import { CompartirCard } from "./CompartirCard";
 import type { Producto } from "@/lib/types";
-import { formatearPrecio, tieneStock } from "@/lib/format";
+import { colorPorDefecto, precioTextoProducto, promocionActiva, tieneStockProducto } from "@/lib/producto";
 
 export function ProductCard({
   producto,
@@ -14,7 +14,13 @@ export function ProductCard({
   prioridad?: boolean;
   volver?: string;
 }) {
-  const disponible = tieneStock(producto.tallas);
+  // La tarjeta muestra UN producto por modelo (ya no uno por modelo+color) —
+  // "colorDefecto" decide qué foto/color aparece acá; el selector real de
+  // color/curva vive en el detalle (SelectorColor/SelectorCurva), no en la
+  // tarjeta, para no sumar interactividad que el catálogo no necesita.
+  const colorDefecto = colorPorDefecto(producto);
+  const disponible = tieneStockProducto(producto);
+  const promocion = promocionActiva(producto);
   const href =
     volver && volver !== "/"
       ? `/producto/${producto.id}?volver=${encodeURIComponent(volver)}`
@@ -37,7 +43,7 @@ export function ProductCard({
     <div className="group relative isolate flex flex-col overflow-hidden rounded-2xl border border-ink-200 bg-paper-raised transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-ink-900/5">
       <div className="relative aspect-[3/4] w-full">
         <ImagenProducto
-          src={producto.fotos[0]}
+          src={colorDefecto.fotos[0]}
           alt={producto.modelo}
           priority={prioridad}
           className="h-full w-full transition-transform duration-300 group-hover:scale-[1.04]"
@@ -46,12 +52,12 @@ export function ProductCard({
             (apiladas si se dan las dos a la vez) para dejar arriba a la
             DERECHA libre exclusivamente para el botón de compartir — así
             nunca compiten por la misma esquina. */}
-        {(!disponible || producto.promocion) && (
+        {(!disponible || promocion) && (
           <div className="absolute left-2 top-2 z-10 flex flex-col items-start gap-1">
             {!disponible && (
               <span className="rounded-full bg-ink-900/85 px-2.5 py-1 text-xs font-medium text-white">Agotado</span>
             )}
-            {producto.promocion && (
+            {promocion && (
               <span className="rounded-full bg-danger-600 px-2.5 py-1 text-xs font-medium text-white">Promoción</span>
             )}
           </div>
@@ -72,14 +78,16 @@ export function ProductCard({
         <span className="text-xs font-medium uppercase tracking-wide text-ink-500">{producto.marca}</span>
         <h3 className="line-clamp-2 text-sm font-medium text-ink-900 sm:text-base">{producto.modelo}</h3>
         <div className="mt-auto flex items-center justify-between pt-2">
-          <span className="text-base font-semibold text-ink-900 sm:text-lg">{formatearPrecio(producto.precio)}</span>
-          <span className="text-xs text-ink-500">{producto.color}</span>
+          <span className="text-base font-semibold text-ink-900 sm:text-lg">{precioTextoProducto(producto)}</span>
+          <span className="text-xs text-ink-500">
+            {producto.colores.length > 1 ? `${producto.colores.length} colores` : colorDefecto.color}
+          </span>
         </div>
       </div>
 
       <Link
         href={href}
-        aria-label={`Ver ${producto.marca} ${producto.modelo}, ${producto.color} — ${formatearPrecio(producto.precio)}`}
+        aria-label={`Ver ${producto.marca} ${producto.modelo} — ${precioTextoProducto(producto)}`}
         className="absolute inset-0 z-10 rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2"
       />
     </div>

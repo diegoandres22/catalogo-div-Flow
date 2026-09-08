@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useCarrito } from "@/components/carrito/CarritoContext";
 import { esCalzado } from "@/lib/transform";
+import { armarItemId } from "@/lib/carrito";
+import { colorPorDefecto, curvaPorDefecto } from "@/lib/producto";
 import type { Producto } from "@/lib/types";
 
 interface Props {
@@ -13,10 +15,11 @@ interface Props {
 
 // Botón de "agregar rápido" sobre la tarjeta del catálogo: suma 1 bulto (o 1
 // unidad si es accesorio) directo al pedido, sin pasar por el detalle ni
-// pedir talla — el carrito no distingue tallas (ver ItemCarrito/AgregarCarrito
-// del detalle, que ya funciona igual con cantidad fija por bulto). Clics
-// repetidos simplemente suman cantidad (agregarItem ya mergea por
-// productoId).
+// pedir color/curva — usa el color y la curva "por defecto" del producto
+// (el primero con stock, ver lib/producto.ts), igual que la foto que ya
+// se ve en la tarjeta. Quien quiera elegir otro color/curva entra al
+// detalle. Clics repetidos simplemente suman cantidad (agregarItem ya
+// mergea por itemId = producto+color+curva).
 //
 // A diferencia del detalle, acá NO se abre el panel del carrito en cada
 // click (abrirDrawer: false): el comprador suele agregar varios productos
@@ -43,16 +46,22 @@ export function AgregarCarritoCard({ producto, disponible }: Props) {
     e.stopPropagation();
     if (!disponible) return;
 
+    const color = colorPorDefecto(producto);
+    const curva = curvaPorDefecto(color);
+
     agregarItem(
       {
+        itemId: armarItemId(producto.id, color.color, curva.id),
         productoId: producto.id,
         modelo: producto.modelo,
         marca: producto.marca,
-        color: producto.color,
-        codigoSap: producto.codigoSap,
-        foto: producto.fotos[0],
-        precio: producto.precio,
-        cantidadPorBulto: producto.cantidadPorBulto,
+        color: color.color,
+        curvaId: curva.id,
+        curvaRango: curva.rango,
+        codigoSap: curva.codigoSap,
+        foto: color.fotos[0],
+        precio: color.precio,
+        cantidadPorBulto: curva.cantidadPorBulto,
         esCalzado: calzado,
       },
       1,

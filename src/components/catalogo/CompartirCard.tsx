@@ -1,6 +1,7 @@
 "use client";
 
 import { useCompartir } from "@/hooks/useCompartir";
+import { colorPorDefecto } from "@/lib/producto";
 import type { Producto } from "@/lib/types";
 
 // Botón de compartir directo en la tarjeta del catálogo — evita obligar al
@@ -8,9 +9,11 @@ import type { Producto } from "@/lib/types";
 // (useCompartir) que BotonCompartir del detalle, presentación distinta:
 // estilo "secundario" (contorno, no relleno) a propósito, para no
 // confundirse con el botón de agregar al pedido (relleno negro) que vive en
-// la esquina opuesta de la misma foto.
+// la esquina opuesta de la misma foto. Comparte el color "por defecto" del
+// producto (el mismo que ya se ve en la tarjeta) — el link lleva a ese color
+// preseleccionado en el detalle.
 export function CompartirCard({ producto }: { producto: Producto }) {
-  const { compartir, copiado } = useCompartir(producto);
+  const { compartir, copiado } = useCompartir(producto, colorPorDefecto(producto).color);
 
   function onClick(e: React.MouseEvent<HTMLButtonElement>) {
     // Igual que AgregarCarritoCard: este botón vive por ENCIMA del link

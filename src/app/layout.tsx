@@ -5,6 +5,8 @@ import { CarritoProvider } from "@/components/carrito/CarritoContext";
 import { CarritoDrawer } from "@/components/carrito/CarritoDrawer";
 import { BusquedaProvider } from "@/components/catalogo/BusquedaContext";
 import { ModoOffline } from "@/components/ui/ModoOffline";
+import { leerConfigSitio } from "@/lib/blob";
+import { sanearNumeroWhatsApp } from "@/lib/carrito";
 import "./globals.css";
 
 // Fuente del sistema en vez de next/font/google: carga instantánea, cero
@@ -43,18 +45,28 @@ export const viewport: Viewport = {
   themeColor: "#ffffff",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // Número de WhatsApp de ventas configurado desde /admin/configuracion
+  // (ConfigSitio en Vercel Blob) — se resuelve acá, una sola vez por
+  // request, y se pasa a CarritoProvider. Si el admin no configuró ninguno
+  // todavía, CarritoProvider cae solo al de la variable de entorno (ver
+  // numeroWhatsAppVentas en lib/carrito.ts).
+  const config = await leerConfigSitio();
+  const numeroWhatsApp = sanearNumeroWhatsApp(config.whatsappVentas);
+
   return (
     <html lang="es" className="h-full antialiased">
       <body className="min-h-full flex flex-col bg-paper text-ink-900">
         <ModoOffline />
         {/* Suspense: BusquedaProvider usa useSearchParams (para sembrar la
-            búsqueda desde "?q=") — sin este boundary, Next exige que TODA
-            la app sea dinámica, y rompe el prerender estático de páginas
-            como /admin/login que no tienen nada que ver con la búsqueda. */}
+            búsqueda desde "?q="). El fetch de ConfigSitio de arriba ya hace
+            dinámica toda la app (Vercel Blob no se puede cachear estático),
+            así que este boundary ya no evita un prerender estático global —
+            se mantiene igual porque sigue haciendo falta para que
+            useSearchParams no rompa el build. */}
         <Suspense fallback={null}>
           <BusquedaProvider>
-            <CarritoProvider>
+            <CarritoProvider numeroWhatsApp={numeroWhatsApp}>
               {children}
               <CarritoDrawer />
             </CarritoProvider>

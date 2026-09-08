@@ -9,11 +9,18 @@ import type { Producto } from "@/lib/types";
 // reusarla también desde la tarjeta del catálogo (CompartirCard) — misma
 // lógica, dos botones con presentación distinta, sin duplicar el
 // try/catch de portapapeles ni el manejo de AbortError.
-export function useCompartir(producto: Producto) {
+//
+// "color" es el color actualmente mostrado/seleccionado (por defecto en la
+// tarjeta, el elegido en el detalle) — se agrega como ?color= en el link
+// solo cuando el producto tiene más de un color, para que quien reciba el
+// link vea el mismo color que se estaba compartiendo, sin ensuciar la URL
+// de productos de un solo color.
+export function useCompartir(producto: Producto, color: string) {
   const [copiado, setCopiado] = useState(false);
 
   function urlProducto(): string {
-    return `${window.location.origin}/producto/${producto.id}`;
+    const base = `${window.location.origin}/producto/${producto.id}`;
+    return producto.colores.length > 1 ? `${base}?color=${encodeURIComponent(color)}` : base;
   }
 
   async function copiarAlPortapapeles(url: string) {
@@ -34,7 +41,7 @@ export function useCompartir(producto: Producto) {
 
   async function compartir() {
     const url = urlProducto();
-    const titulo = `${producto.marca} - ${producto.modelo} (${producto.color})`;
+    const titulo = producto.colores.length > 1 ? `${producto.marca} - ${producto.modelo} (${color})` : `${producto.marca} - ${producto.modelo}`;
 
     if (navigator.share) {
       try {

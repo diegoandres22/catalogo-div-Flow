@@ -1,8 +1,10 @@
-import type { ResumenImportacion } from "@/lib/types";
+import type { DiffCatalogo, ResumenImportacion } from "@/lib/types";
 import { TablaErrores } from "./TablaErrores";
+import { ComparadorCambios } from "./ComparadorCambios";
 
 interface Props {
   resumen: ResumenImportacion;
+  diff: DiffCatalogo | null;
   onConfirmar: () => void;
   onCancelar: () => void;
   confirmando: boolean;
@@ -13,7 +15,7 @@ interface Props {
   bloqueadoPorOtraOperacion?: boolean;
 }
 
-export function ResumenPrevio({ resumen, onConfirmar, onCancelar, confirmando, bloqueadoPorOtraOperacion }: Props) {
+export function ResumenPrevio({ resumen, diff, onConfirmar, onCancelar, confirmando, bloqueadoPorOtraOperacion }: Props) {
   return (
     <div className="rounded-2xl border border-ink-200 bg-paper-raised p-5 sm:p-6">
       <h2 className="text-base font-semibold text-ink-900">Resumen antes de confirmar</h2>
@@ -23,6 +25,8 @@ export function ResumenPrevio({ resumen, onConfirmar, onCancelar, confirmando, b
         <Metrica etiqueta="Variantes talla/color" valor={resumen.totalVariantes} />
         <Metrica etiqueta="Filas con error" valor={resumen.errores.length} enfasis={resumen.errores.length > 0} />
       </div>
+
+      {diff && <ComparadorCambios diff={diff} />}
 
       {resumen.errores.length > 0 && (
         <div className="mt-5">

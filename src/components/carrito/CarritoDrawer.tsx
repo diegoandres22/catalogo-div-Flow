@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { useCarrito } from "./CarritoContext";
 import {
   linkWhatsAppPedido,
-  numeroWhatsAppVentas,
   subtotalDelItem,
   totalCarrito,
   unidadesDelItem,
@@ -28,9 +27,9 @@ function validarComprador(c: DatosComprador): Errores {
 }
 
 export function CarritoDrawer() {
-  const { items, comprador, abierto, actualizarCantidad, quitarItem, vaciar, setComprador, cerrar } = useCarrito();
+  const { items, comprador, abierto, numeroWhatsApp, actualizarCantidad, quitarItem, vaciar, setComprador, cerrar } = useCarrito();
   const [errores, setErrores] = useState<Errores>({});
-  const numeroConfigurado = numeroWhatsAppVentas();
+  const numeroConfigurado = numeroWhatsApp;
 
   // Cierra con Escape — patrón esperado de cualquier panel/diálogo lateral.
   useEffect(() => {
@@ -46,8 +45,8 @@ export function CarritoDrawer() {
     if (!numeroConfigurado) {
       logError(
         "CarritoDrawer",
-        "Falta configurar NEXT_PUBLIC_WHATSAPP_VENTAS en Vercel.",
-        "Andá a Vercel → el proyecto → Settings → Environment Variables y agregá NEXT_PUBLIC_WHATSAPP_VENTAS con el número de ventas en formato internacional (ej. 584121234567, sin '+' ni espacios). Después hay que volver a desplegar para que tome el cambio.",
+        "Falta configurar el número de WhatsApp de ventas.",
+        "Configuralo desde el panel de administración (Configuración → WhatsApp de ventas), o como respaldo agregá NEXT_PUBLIC_WHATSAPP_VENTAS en Vercel → el proyecto → Settings → Environment Variables (formato internacional, ej. 584121234567, sin '+' ni espacios; requiere volver a desplegar).",
       );
     }
     // Solo se registra una vez al montar el panel — no en cada render.
@@ -72,7 +71,7 @@ export function CarritoDrawer() {
       document.getElementById(`comprador-${primerCampoConError}`)?.focus();
       return;
     }
-    const link = linkWhatsAppPedido(items, comprador);
+    const link = linkWhatsAppPedido(items, comprador, numeroWhatsApp);
     if (!link) {
       toast.error("El envío por WhatsApp todavía no está configurado. Avisale al administrador del sitio.");
       return;
@@ -124,10 +123,10 @@ export function CarritoDrawer() {
               <ul className="flex flex-col gap-3">
                 {items.map((item) => (
                   <ItemCarritoFila
-                    key={item.productoId}
+                    key={item.itemId}
                     item={item}
-                    onCantidad={(c) => actualizarCantidad(item.productoId, c)}
-                    onQuitar={() => quitarItem(item.productoId)}
+                    onCantidad={(c) => actualizarCantidad(item.itemId, c)}
+                    onQuitar={() => quitarItem(item.itemId)}
                   />
                 ))}
               </ul>
@@ -234,7 +233,10 @@ function ItemCarritoFila({
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-ink-500">{item.marca}</p>
             <p className="text-sm font-medium text-ink-900">{item.modelo}</p>
-            <p className="text-xs text-ink-500">{item.color}</p>
+            <p className="text-xs text-ink-500">
+              {item.color}
+              {item.esCalzado && item.curvaRango !== "Único" ? ` · Tallas ${item.curvaRango}` : ""}
+            </p>
           </div>
           <button type="button" onClick={onQuitar} aria-label={`Quitar ${item.modelo} del pedido`} className="p-1 text-ink-500 hover:text-danger-600">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">

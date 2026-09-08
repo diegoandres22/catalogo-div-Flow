@@ -1,4 +1,4 @@
-import { leerCatalogoPublico } from "@/lib/blob";
+import { leerCatalogoPublico, leerConfigSitio } from "@/lib/blob";
 import { Header } from "@/components/ui/Header";
 import { Footer } from "@/components/ui/Footer";
 import { CatalogoClient } from "@/components/catalogo/CatalogoClient";
@@ -9,7 +9,7 @@ import { EstadoVacio } from "@/components/catalogo/EstadoVacio";
 export const dynamic = "force-dynamic";
 
 export default async function PaginaCatalogo() {
-  const catalogo = await leerCatalogoPublico();
+  const [catalogo, config] = await Promise.all([leerCatalogoPublico(), leerConfigSitio()]);
 
   return (
     <>
@@ -24,7 +24,7 @@ export default async function PaginaCatalogo() {
           <CatalogoClient productos={catalogo.productos} />
         )}
       </main>
-      <Footer />
+      <Footer config={config} />
     </>
   );
 }

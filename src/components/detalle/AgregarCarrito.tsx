@@ -4,9 +4,16 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useCarrito } from "@/components/carrito/CarritoContext";
 import { esCalzado } from "@/lib/transform";
-import type { Producto } from "@/lib/types";
+import { armarItemId } from "@/lib/carrito";
+import type { Curva, Producto, VarianteColor } from "@/lib/types";
 
-export function AgregarCarrito({ producto }: { producto: Producto }) {
+interface Props {
+  producto: Producto;
+  color: VarianteColor;
+  curva: Curva;
+}
+
+export function AgregarCarrito({ producto, color, curva }: Props) {
   const { agregarItem, abrir } = useCarrito();
   const [cantidad, setCantidad] = useState(1);
   const calzado = esCalzado(producto.rubro);
@@ -19,14 +26,17 @@ export function AgregarCarrito({ producto }: { producto: Producto }) {
   function agregar() {
     agregarItem(
       {
+        itemId: armarItemId(producto.id, color.color, curva.id),
         productoId: producto.id,
         modelo: producto.modelo,
         marca: producto.marca,
-        color: producto.color,
-        codigoSap: producto.codigoSap,
-        foto: producto.fotos[0],
-        precio: producto.precio,
-        cantidadPorBulto: producto.cantidadPorBulto,
+        color: color.color,
+        curvaId: curva.id,
+        curvaRango: curva.rango,
+        codigoSap: curva.codigoSap,
+        foto: color.fotos[0],
+        precio: color.precio,
+        cantidadPorBulto: curva.cantidadPorBulto,
         esCalzado: calzado,
       },
       cantidad,
@@ -66,7 +76,7 @@ export function AgregarCarrito({ producto }: { producto: Producto }) {
         onClick={agregar}
         className="flex-1 rounded-full bg-ink-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-ink-700"
       >
-        Agregar al pedido{calzado ? ` (${cantidad * producto.cantidadPorBulto} pares)` : ""}
+        Agregar al pedido{calzado ? ` (${cantidad * curva.cantidadPorBulto} pares)` : ""}
       </button>
     </div>
   );

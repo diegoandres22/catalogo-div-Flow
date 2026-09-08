@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { logError } from "@/lib/logger";
+import { AdminNav } from "./AdminNav";
 
 export function AdminHeader() {
   const router = useRouter();
@@ -35,6 +36,7 @@ export function AdminHeader() {
           Cerrar sesión
         </button>
       </div>
+      <AdminNav />
     </header>
   );
 }

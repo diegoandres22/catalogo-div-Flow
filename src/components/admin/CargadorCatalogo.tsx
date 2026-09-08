@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import type { ResumenImportacion } from "@/lib/types";
+import type { DiffCatalogo, ResumenImportacion } from "@/lib/types";
 import { logError } from "@/lib/logger";
 import { ResumenPrevio } from "./ResumenPrevio";
 import { GuiaColumnas } from "./GuiaColumnas";
@@ -43,6 +43,7 @@ export function CargadorCatalogo({ bloqueadoPorOtraOperacion, onOperacionCritica
   const [url, setUrl] = useState("");
   const [estado, setEstado] = useState<Estado>("inicial");
   const [resumen, setResumen] = useState<ResumenImportacion | null>(null);
+  const [diff, setDiff] = useState<DiffCatalogo | null>(null);
   const [nombreArchivo, setNombreArchivo] = useState<string | null>(null);
   const inputArchivoRef = useRef<HTMLInputElement>(null);
 
@@ -111,6 +112,7 @@ export function CargadorCatalogo({ bloqueadoPorOtraOperacion, onOperacionCritica
       }
 
       setResumen(data.resumen as ResumenImportacion);
+      setDiff((data.diff as DiffCatalogo) ?? null);
       setEstado("previsualizando");
       toast.success("Archivo analizado. Revisá el resumen antes de confirmar.", { id: idCarga });
     } catch (err) {
@@ -146,6 +148,7 @@ export function CargadorCatalogo({ bloqueadoPorOtraOperacion, onOperacionCritica
 
   function cancelar() {
     setResumen(null);
+    setDiff(null);
     setEstado("inicial");
     setNombreArchivo(null);
     if (inputArchivoRef.current) inputArchivoRef.current.value = "";
@@ -153,6 +156,7 @@ export function CargadorCatalogo({ bloqueadoPorOtraOperacion, onOperacionCritica
 
   function nuevaCarga() {
     setResumen(null);
+    setDiff(null);
     setEstado("inicial");
     setNombreArchivo(null);
     setUrl("");
@@ -181,6 +185,7 @@ export function CargadorCatalogo({ bloqueadoPorOtraOperacion, onOperacionCritica
     return (
       <ResumenPrevio
         resumen={resumen}
+        diff={diff}
         onConfirmar={confirmar}
         onCancelar={cancelar}
         confirmando={estado === "confirmando"}

@@ -1,5 +1,5 @@
-ItemCode,U_PX_Modelo,U_PX_Color,U_PX_Marca,U_PX_Rubro,PV Fabrica,U_PX_Serie,U_PX_Curva,Disponible a Ofertar,U_PX_Genero,U_PX_Linea,U_Promocion,U_LinkImagenChasea,Status Imagen
-PI20189901706050,KZ-1899,BEIGE,KRIZA,CALZADO,12.99,35-40,1-2-3-3-2-1,153,DAMA,LADIES,N,https://cdn.ejemplo.com/kriza/1899-beige-1.jpg,Con Foto
-PI20189901706051,KZ-1899,BEIGE,KRIZA,CALZADO,12.99,41-44,1-2-2-1,40,DAMA,LADIES,N,https://cdn.ejemplo.com/kriza/1899-beige-1.jpg,Con Foto
-PI20301303806050,MORA BF2414,BLANCO/PLATA,KRIZA,CALZADO,19.99,35-40,1-2-3-3-2-1,166,DAMA,CASUAL SPORT,S,https://cdn.ejemplo.com/kriza/3013-blanco-plata-1.jpg,Con Foto
-AC50210000616130,CARTUCHERA,AZUL,VITA KIDS,ACCESORIOS,1.99,N/A,N/A,47,NIÑO,CARTUCHERA,N,https://cdn.ejemplo.com/vitakids/2100-azul-1.jpg,Con Foto
+ItemCode,#Modelo,U_PX_Modelo,U_PX_Color,U_PX_Marca,U_PX_Rubro,PV Fabrica,U_PX_Serie,U_PX_Curva,Disponible a Ofertar,OnHand,U_PX_Genero,U_PX_Linea,U_Promocion,U_LinkImagenChasea,Status Imagen
+PI20189901706050,1899,KZ-1899,BEIGE,KRIZA,CALZADO,12.99,35-40,1-2-3-3-2-1,153,90,DAMA,LADIES,N,https://cdn.ejemplo.com/kriza/1899-beige-1.jpg,Con Foto
+PI20189901706051,1899,KZ-1899,BEIGE,KRIZA,CALZADO,12.99,41-44,1-2-2-1,40,40,DAMA,LADIES,N,https://cdn.ejemplo.com/kriza/1899-beige-1.jpg,Con Foto
+PI20301303806050,3013,MORA BF2414,BLANCO/PLATA,KRIZA,CALZADO,19.99,35-40,1-2-3-3-2-1,166,100,DAMA,CASUAL SPORT,S,https://cdn.ejemplo.com/kriza/3013-blanco-plata-1.jpg,Con Foto
+AC50210000616130,2100,CARTUCHERA,AZUL,VITA KIDS,ACCESORIOS,1.99,N/A,N/A,47,47,NIÑO,CARTUCHERA,N,https://cdn.ejemplo.com/vitakids/2100-azul-1.jpg,Con Foto

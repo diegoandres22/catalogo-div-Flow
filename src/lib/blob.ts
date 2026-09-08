@@ -6,13 +6,18 @@
 //  - catalogo-pending.json  -> resultado parseado de la última carga del admin,
 //                              a la espera de que confirme "Reemplazar catálogo"
 
-import { del, get, put } from "@vercel/blob";
-import type { Catalogo, GuiaTallas } from "./types";
+import { del, get, list, put } from "@vercel/blob";
+import type { Catalogo, ConfigSitio, EntradaHistorial, GuiaTallas, ResumenImportacion } from "./types";
 import { logError, pistaBlob } from "./logger";
 
 const CATALOGO_KEY = "catalogo.json";
 const BACKUP_KEY = "catalogo-backup.json";
 const PENDING_KEY = "catalogo-pending.json";
+// El resumen (incluye la cantidad de errores/filas excluidas) de la carga
+// pendiente — separado del catálogo pendiente en sí porque ResumenImportacion
+// no es parte de Catalogo. Se usa para construir la entrada de historial al
+// confirmar (ver agregarEntradaHistorial más abajo).
+const PENDING_RESUMEN_KEY = "catalogo-pending-resumen.json";
 
 // Guía de tallas: NO es parte del catálogo (no cambia con cada carga de
 // Excel) — es una config aparte que el admin sube una sola vez desde su
@@ -149,11 +154,21 @@ export async function leerCatalogoPendiente(): Promise<Catalogo | null> {
   return leerJson<Catalogo>(PENDING_KEY);
 }
 
+/** Resumen (errores incluidos) de la carga pendiente — ver PENDING_RESUMEN_KEY. */
+export async function guardarResumenPendiente(resumen: ResumenImportacion): Promise<void> {
+  await escribirJson(PENDING_RESUMEN_KEY, resumen);
+}
+
+export async function leerResumenPendiente(): Promise<ResumenImportacion | null> {
+  return leerJson<ResumenImportacion>(PENDING_RESUMEN_KEY);
+}
+
 /**
  * Promueve el catálogo pendiente a catálogo publicado:
  *  1) respalda el catálogo actual (si existe) en catalogo-backup.json,
  *  2) sobrescribe catalogo.json con el pendiente,
- *  3) limpia el pendiente.
+ *  3) limpia el pendiente,
+ *  4) registra la carga en el historial (ver agregarEntradaHistorial).
  */
 export async function confirmarReemplazoCatalogo(): Promise<Catalogo> {
   const pendiente = await leerCatalogoPendiente();
@@ -167,6 +182,11 @@ export async function confirmarReemplazoCatalogo(): Promise<Catalogo> {
   }
 
   await escribirJson(CATALOGO_KEY, pendiente);
+
+  // Se lee ANTES de limpiar el pendiente — es lo único que sabe cuántas
+  // filas se excluyeron en esta carga (Catalogo no lo trae).
+  const resumenPendiente = await leerResumenPendiente();
+  const metaArchivoPendiente = await leerJson<MetaArchivoOriginal>(ARCHIVO_ORIGINAL_PENDIENTE_META_KEY);
 
   try {
     await del(PENDING_KEY);
@@ -201,7 +221,19 @@ export async function confirmarReemplazoCatalogo(): Promise<Catalogo> {
     logError("lib/blob.confirmarReemplazoCatalogo (archivo original)", err, pistaBlob(mensaje));
   } finally {
     await limpiarArchivoOriginalPendiente();
+    await borrarSiExiste(PENDING_RESUMEN_KEY);
   }
+
+  await agregarEntradaHistorial({
+    id: String(Date.now()),
+    fecha: new Date().toISOString(),
+    origen: metaArchivoPendiente ? "archivo" : "google_sheets",
+    nombreArchivo: metaArchivoPendiente?.nombreArchivo ?? null,
+    totalProductos: pendiente.totalProductos,
+    totalVariantes: pendiente.totalVariantes,
+    totalErrores: resumenPendiente?.errores.length ?? 0,
+    totalSinFoto: resumenPendiente?.errores.filter((e) => /sin foto/i.test(e.motivo)).length ?? 0,
+  });
 
   return pendiente;
 }
@@ -217,6 +249,21 @@ export async function revertirABackup(): Promise<Catalogo> {
     throw new Error("No hay respaldo disponible para revertir.");
   }
   await escribirJson(CATALOGO_KEY, backup);
+
+  // Un revert también es un cambio real al catálogo publicado — queda en el
+  // historial igual que una carga, con origen "revertir" para distinguirla
+  // (no hubo archivo ni errores propios: son los del catálogo restaurado).
+  await agregarEntradaHistorial({
+    id: String(Date.now()),
+    fecha: new Date().toISOString(),
+    origen: "revertir",
+    nombreArchivo: null,
+    totalProductos: backup.totalProductos,
+    totalVariantes: backup.totalVariantes,
+    totalErrores: 0,
+    totalSinFoto: 0,
+  });
+
   return backup;
 }
 
@@ -244,4 +291,58 @@ export async function subirImagenGuiaTallas(nombre: string, bytes: ArrayBuffer, 
     contentType,
   });
   return resultado.url;
+}
+
+// --- Historial de cargas -----------------------------------------------
+// Un archivo JSON por carga confirmada, bajo el prefijo "historial/" — no
+// una sola lista que se reescribe entera en cada carga (eso arriesgaría
+// perder historial viejo si dos cargas se confirman casi al mismo tiempo).
+// El nombre de archivo es el id (timestamp en ms): al ser todos del mismo
+// largo mientras dure este milenio, ordenar por nombre = ordenar por fecha.
+const HISTORIAL_PREFIJO = "historial/";
+const HISTORIAL_LIMITE_LISTADO = 50; // más que suficiente para lo que el panel muestra; evita listar sin límite si el historial crece mucho
+
+async function agregarEntradaHistorial(entrada: EntradaHistorial): Promise<void> {
+  try {
+    await escribirJson(`${HISTORIAL_PREFIJO}${entrada.id}.json`, entrada);
+  } catch (err) {
+    // No debe tumbar la confirmación/reversión si esto falla — el catálogo
+    // en sí ya quedó publicado; solo se pierde ese registro del historial.
+    const mensaje = err instanceof Error ? err.message : String(err);
+    logError("lib/blob.agregarEntradaHistorial", err, pistaBlob(mensaje));
+  }
+}
+
+/** Las cargas confirmadas más recientes primero (más nuevo primero). */
+export async function leerHistorial(limite = 20): Promise<EntradaHistorial[]> {
+  try {
+    const { blobs } = await list({ prefix: HISTORIAL_PREFIJO, limit: HISTORIAL_LIMITE_LISTADO });
+    const ordenados = [...blobs].sort((a, b) => (a.pathname < b.pathname ? 1 : -1));
+    const entradas = await Promise.all(
+      ordenados.slice(0, limite).map((b) => leerJson<EntradaHistorial>(b.pathname)),
+    );
+    return entradas.filter((e): e is EntradaHistorial => e !== null);
+  } catch (err) {
+    const mensaje = err instanceof Error ? err.message : String(err);
+    logError("lib/blob.leerHistorial", err, pistaBlob(mensaje));
+    return [];
+  }
+}
+
+// --- Configuración del sitio ---------------------------------------------
+// Valores operativos editables desde /admin/configuracion (WhatsApp de
+// ventas, datos de contacto del footer) que antes solo se podían cambiar
+// desde Vercel (variable de entorno) o estaban fijos en el código. Todos
+// los campos son opcionales — si no están configurados acá, cada lugar que
+// los usa cae a su valor por defecto (ver CONFIG_VACIA).
+const CONFIG_SITIO_KEY = "config-sitio.json";
+
+export const CONFIG_SITIO_VACIA: ConfigSitio = { whatsappVentas: null, descripcionEmpresa: null, rif: null };
+
+export async function leerConfigSitio(): Promise<ConfigSitio> {
+  return (await leerJson<ConfigSitio>(CONFIG_SITIO_KEY)) ?? CONFIG_SITIO_VACIA;
+}
+
+export async function guardarConfigSitio(config: ConfigSitio): Promise<void> {
+  await escribirJson(CONFIG_SITIO_KEY, config);
 }

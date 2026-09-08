@@ -9,8 +9,8 @@ import type { Producto } from "@/lib/types";
 // que generateMetadata ya llena con la foto real del producto). Donde no
 // existe (la mayoría de los navegadores de escritorio), copia el link.
 // Lógica compartida con CompartirCard (catálogo) vía useCompartir.
-export function BotonCompartir({ producto }: { producto: Producto }) {
-  const { compartir, copiado } = useCompartir(producto);
+export function BotonCompartir({ producto, color }: { producto: Producto; color: string }) {
+  const { compartir, copiado } = useCompartir(producto, color);
 
   return (
     <button
