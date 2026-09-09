@@ -17,6 +17,19 @@ import { logError } from "@/lib/logger";
 
 type Errores = Partial<Record<keyof DatosComprador, string>>;
 
+// Mismo patrón de confirmación por toast que ColeccionesConfig.tsx
+// (confirmarEliminar) — al agrandar el botón de vaciar para que sea más
+// fácil de tocar, también sube el riesgo de un toque accidental que borre
+// todo el pedido, así que ahora pide confirmar antes de ejecutar.
+function confirmarVaciar(alConfirmar: () => void) {
+  toast("¿Vaciar todo el pedido?", {
+    description: "Se van a quitar todos los productos agregados. Esta acción no se puede deshacer.",
+    duration: Infinity,
+    action: { label: "Vaciar", onClick: () => alConfirmar() },
+    cancel: { label: "Cancelar", onClick: () => {} },
+  });
+}
+
 function validarComprador(c: DatosComprador): Errores {
   const errores: Errores = {};
   if (!c.nombre.trim()) errores.nombre = "Falta el nombre.";
@@ -132,9 +145,12 @@ export function CarritoDrawer() {
               </ul>
               <button
                 type="button"
-                onClick={vaciar}
-                className="mt-3 text-xs font-medium text-ink-500 underline-offset-2 hover:underline"
+                onClick={() => confirmarVaciar(vaciar)}
+                className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-full border border-danger-600 px-4 py-2.5 text-sm font-medium text-danger-600 transition-colors hover:bg-danger-100"
               >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
                 Vaciar pedido
               </button>
 
