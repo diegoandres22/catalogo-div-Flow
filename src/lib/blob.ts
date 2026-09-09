@@ -7,7 +7,7 @@
 //                              a la espera de que confirme "Reemplazar catálogo"
 
 import { del, get, list, put } from "@vercel/blob";
-import type { Catalogo, ConfigSitio, EntradaHistorial, GuiaTallas, ResumenImportacion } from "./types";
+import type { Catalogo, Coleccion, ConfigSitio, EntradaHistorial, GuiaTallas, ResumenImportacion } from "./types";
 import { logError, pistaBlob } from "./logger";
 
 const CATALOGO_KEY = "catalogo.json";
@@ -24,6 +24,13 @@ const PENDING_RESUMEN_KEY = "catalogo-pending-resumen.json";
 // propio apartado del panel. Ver GuiaTallasConfig.tsx y
 // /api/admin/guia-tallas.
 const GUIA_TALLAS_KEY = "guia-tallas.json";
+
+// Colecciones de la home (tarjetas "Volpe", "Kriza + Accesorios", etc.) —
+// mismo criterio que la guía de tallas: no es parte del catálogo (no cambia
+// con cada carga de Excel), el admin la administra aparte desde
+// /admin/colecciones. Ver lib/coleccion.ts para el filtro/conteo y
+// ColeccionesHome.tsx para el render público.
+const COLECCIONES_KEY = "colecciones.json";
 
 // Archivo crudo (.csv/.xlsx) de la carga que generó el catálogo publicado —
 // para que el admin pueda descargar "el archivo que se usó" sin tener que
@@ -286,6 +293,24 @@ export async function guardarGuiaTallas(guia: GuiaTallas): Promise<void> {
  */
 export async function subirImagenGuiaTallas(nombre: string, bytes: ArrayBuffer, contentType: string): Promise<string> {
   const resultado = await put(`guia-tallas/${nombre}`, bytes, {
+    access: "public",
+    addRandomSuffix: true,
+    contentType,
+  });
+  return resultado.url;
+}
+
+export async function leerColecciones(): Promise<Coleccion[]> {
+  return (await leerJson<Coleccion[]>(COLECCIONES_KEY)) ?? [];
+}
+
+export async function guardarColecciones(colecciones: Coleccion[]): Promise<void> {
+  await escribirJson(COLECCIONES_KEY, colecciones);
+}
+
+/** Mismo patrón que subirImagenGuiaTallas: acceso público, la necesita el navegador del comprador para pintar la portada en la home sin pasar por el servidor. */
+export async function subirImagenColeccion(nombre: string, bytes: ArrayBuffer, contentType: string): Promise<string> {
+  const resultado = await put(`colecciones/${nombre}`, bytes, {
     access: "public",
     addRandomSuffix: true,
     contentType,

@@ -72,6 +72,29 @@ export interface GuiaTallas {
   tabla: string | null;
 }
 
+// Filtro que define qué productos entran en una colección de la home — los
+// mismos 5 campos "de catálogo" que ya existen en ValorFiltros (ver
+// Filtros.tsx), todos opcionales: una colección puede ser tan amplia como
+// "toda la marca Volpe" o tan específica como "Kriza + Accesorios + línea X".
+export interface FiltroColeccion {
+  marca?: string;
+  categoria?: string; // rubro: CALZADO / ACCESORIOS
+  linea?: string;
+  genero?: string;
+  color?: string;
+}
+
+// Una tarjeta de colección de la home (ver ColeccionesHome.tsx). El admin
+// las crea/edita/borra libremente desde /admin/colecciones — no son 6 slots
+// fijos en el código, sino una lista guardada en Blob (ver lib/blob.ts). El
+// orden de la lista ES el orden de las tarjetas (sin campo "orden" aparte).
+export interface Coleccion {
+  id: string;
+  nombre: string;
+  imagenUrl: string | null;
+  filtro: FiltroColeccion;
+}
+
 export interface Catalogo {
   productos: Producto[];
   generadoEn: string; // ISO 8601

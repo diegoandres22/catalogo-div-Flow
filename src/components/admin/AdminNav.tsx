@@ -6,14 +6,16 @@ import { usePathname } from "next/navigation";
 const TABS = [
   { href: "/admin", etiqueta: "Dashboard" },
   { href: "/admin/catalogo", etiqueta: "Catálogo" },
+  { href: "/admin/colecciones", etiqueta: "Colecciones" },
   { href: "/admin/configuracion", etiqueta: "Configuración" },
 ];
 
 // Navegación del panel — separada en secciones a medida que el panel fue
 // ganando funcionalidades (antes todo vivía en una sola pantalla). Cada
 // pestaña agrupa lo que tiene algo en común: ver el estado del catálogo
-// (Dashboard), cargarlo/revertirlo/ver su historial (Catálogo), y datos
-// operativos que casi no cambian (Configuración).
+// (Dashboard), cargarlo/revertirlo/ver su historial (Catálogo), las
+// tarjetas de la home (Colecciones), y datos operativos que casi no
+// cambian (Configuración).
 export function AdminNav() {
   const pathname = usePathname();
 

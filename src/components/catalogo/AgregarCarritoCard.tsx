@@ -5,28 +5,31 @@ import { toast } from "sonner";
 import { useCarrito } from "@/components/carrito/CarritoContext";
 import { esCalzado } from "@/lib/transform";
 import { armarItemId } from "@/lib/carrito";
-import { colorPorDefecto, curvaPorDefecto } from "@/lib/producto";
-import type { Producto } from "@/lib/types";
+import type { Curva, Producto, VarianteColor } from "@/lib/types";
 
 interface Props {
   producto: Producto;
+  color: VarianteColor;
+  curva: Curva;
   disponible: boolean;
 }
 
 // Botón de "agregar rápido" sobre la tarjeta del catálogo: suma 1 bulto (o 1
-// unidad si es accesorio) directo al pedido, sin pasar por el detalle ni
-// pedir color/curva — usa el color y la curva "por defecto" del producto
-// (el primero con stock, ver lib/producto.ts), igual que la foto que ya
-// se ve en la tarjeta. Quien quiera elegir otro color/curva entra al
-// detalle. Clics repetidos simplemente suman cantidad (agregarItem ya
-// mergea por itemId = producto+color+curva).
+// unidad si es accesorio) directo al pedido, sin pasar por el detalle. El
+// color sigue siendo el "por defecto" del producto (quien quiera otro color
+// entra al detalle) — pero la curva ya NO se recalcula acá adentro: la
+// decide ProductCard (por defecto, o la que el comprador haya tocado en
+// SelectorCurvaCard) y llega resuelta por props. Así "disponible" refleja
+// el stock de la curva REALMENTE seleccionada, no solo si el producto tiene
+// stock en general. Clics repetidos simplemente suman cantidad (agregarItem
+// ya mergea por itemId = producto+color+curva).
 //
 // A diferencia del detalle, acá NO se abre el panel del carrito en cada
 // click (abrirDrawer: false): el comprador suele agregar varios productos
 // seguidos mientras recorre la grilla, y abrir el panel de golpe cortaría
 // ese scroll — el toast + el contador del botón "Pedido" ya avisan que se
 // agregó, sin interrumpir.
-export function AgregarCarritoCard({ producto, disponible }: Props) {
+export function AgregarCarritoCard({ producto, color, curva, disponible }: Props) {
   const { agregarItem, abrir } = useCarrito();
   const calzado = esCalzado(producto.rubro);
   const [agregado, setAgregado] = useState(false);
@@ -45,9 +48,6 @@ export function AgregarCarritoCard({ producto, disponible }: Props) {
     // este click ni siquiera alcanza a disparar.
     e.stopPropagation();
     if (!disponible) return;
-
-    const color = colorPorDefecto(producto);
-    const curva = curvaPorDefecto(color);
 
     agregarItem(
       {
@@ -68,7 +68,8 @@ export function AgregarCarritoCard({ producto, disponible }: Props) {
       { abrirDrawer: false },
     );
 
-    toast.success(`${producto.modelo} agregado al pedido (1 ${calzado ? "bulto" : "unidad"}).`, {
+    const detalleCurva = calzado && curva.rango !== "Único" ? ` (curva ${curva.rango})` : "";
+    toast.success(`${producto.modelo}${detalleCurva} agregado al pedido (1 ${calzado ? "bulto" : "unidad"}).`, {
       action: { label: "Ver pedido", onClick: abrir },
     });
 
@@ -77,13 +78,16 @@ export function AgregarCarritoCard({ producto, disponible }: Props) {
     timeoutRef.current = setTimeout(() => setAgregado(false), 1200);
   }
 
+  const tieneCurvaVisible = calzado && curva.rango !== "Único";
+  const etiqueta = tieneCurvaVisible ? `${producto.modelo}, curva ${curva.rango}` : producto.modelo;
+
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={!disponible}
-      aria-label={disponible ? `Agregar ${producto.modelo} al pedido` : `${producto.modelo} agotado`}
-      title={disponible ? "Agregar al pedido" : "Agotado"}
+      aria-label={disponible ? `Agregar ${etiqueta} al pedido` : `${etiqueta} sin stock`}
+      title={disponible ? "Agregar al pedido" : tieneCurvaVisible ? "Sin stock en esta curva" : "Sin stock"}
       className={[
         "flex h-9 w-9 shrink-0 items-center justify-center rounded-full shadow-md transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2",
         !disponible
