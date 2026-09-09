@@ -40,5 +40,12 @@ export function pistaBlob(mensaje: string): string | undefined {
   if (/BlobNotFoundError|not_found/i.test(mensaje)) {
     return "El archivo no existe en Blob todavía — normal si es la primera carga del catálogo, no requiere acción.";
   }
+  if (/Cannot use public access on a private store/i.test(mensaje)) {
+    return (
+      "El store de Blob conectado es privado — no admite access:'public'. " +
+      "Las subidas de imágenes visibles al público (colecciones, guía de tallas) deben subir con " +
+      "access:'private' y servirse a través de /api/imagenes/[...pathname] (ver lib/blob.ts)."
+    );
+  }
   return undefined;
 }

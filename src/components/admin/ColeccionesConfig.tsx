@@ -33,6 +33,16 @@ function resumenFiltro(filtro: FiltroColeccion): string[] {
   return partes.length > 0 ? partes : ["Todo el catálogo"];
 }
 
+/** Confirmación antes de borrar — un solo toast con acción "Eliminar"/"Cancelar" en vez de borrar directo al click. Se queda en pantalla (duration: Infinity) hasta que el admin elija una de las dos. */
+function confirmarEliminar(nombre: string, alConfirmar: () => void) {
+  toast(`¿Eliminar "${nombre.trim() || "esta colección"}"?`, {
+    description: "Esta acción no se puede deshacer.",
+    duration: Infinity,
+    action: { label: "Eliminar", onClick: () => alConfirmar() },
+    cancel: { label: "Cancelar", onClick: () => {} },
+  });
+}
+
 // El admin ahora puede crear/renombrar/quitar colecciones libremente (no son
 // 6 slots fijos) — ver la respuesta de Diego a la pregunta de "modelo de
 // datos" del pedido original. El orden de la lista en pantalla ES el orden
@@ -226,7 +236,7 @@ export function ColeccionesConfig({ opciones, coleccionesIniciales }: { opciones
               onImagen={(archivo) => subirImagen(c.id, archivo)}
               onMoverArriba={() => mover(c.id, -1)}
               onMoverAbajo={() => mover(c.id, 1)}
-              onEliminar={() => eliminar(c.id)}
+              onEliminar={() => confirmarEliminar(c.nombre, () => eliminar(c.id))}
               onGuardar={guardar}
               onCancelar={() => cancelar(c.id)}
             />
@@ -239,7 +249,7 @@ export function ColeccionesConfig({ opciones, coleccionesIniciales }: { opciones
               onMoverArriba={() => mover(c.id, -1)}
               onMoverAbajo={() => mover(c.id, 1)}
               onEditar={() => editar(c.id)}
-              onEliminar={() => eliminar(c.id)}
+              onEliminar={() => confirmarEliminar(c.nombre, () => eliminar(c.id))}
             />
           ),
         )}
@@ -391,7 +401,11 @@ function TarjetaColeccionEditor({
 
   return (
     <div className="rounded-xl border-2 border-accent-600 bg-paper-raised p-3 sm:p-4">
-      <span className="mb-2 inline-block rounded-md bg-accent-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-accent-700">
+      <span
+        className={`mb-2 inline-block rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${
+          esNueva ? "bg-warning-100 text-warning-600" : "bg-info-100 text-info-600"
+        }`}
+      >
         {esNueva ? "Colección nueva — sin guardar" : "Editando"}
       </span>
 

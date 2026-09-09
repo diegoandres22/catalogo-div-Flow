@@ -284,20 +284,45 @@ export async function guardarGuiaTallas(guia: GuiaTallas): Promise<void> {
 }
 
 /**
- * Sube una imagen con acceso público (a diferencia del resto de las claves
- * de este archivo, que son privadas) — la necesita el navegador del
- * comprador para poder mostrarla directo en /producto/[id], sin pasar por
- * el servidor. Se usa solo para las imágenes de la guía de tallas que el
- * admin sube desde su panel (no para el catálogo, cuyas fotos ya vienen
- * como URLs externas del Excel).
+ * Sube una imagen que el navegador del comprador necesita poder ver directo
+ * (portada de colección, guía de tallas) — a diferencia del resto de las
+ * claves de este archivo, que nunca salen del servidor.
+ *
+ * El store de Blob de este proyecto está configurado como PRIVADO (un store
+ * es público o privado desde que se crea — no se puede convertir después),
+ * así que subir con access:"public" falla siempre con "Cannot use public
+ * access on a private store". La solución NO es crear un segundo store
+ * público: se sube privado, igual que todo lo demás, y se sirve a través de
+ * /api/imagenes/[...pathname] (ver ese route), que hace de puente
+ * autenticado hacia Blob — el pathname ya trae sufijo aleatorio
+ * (addRandomSuffix), así que es tan "no adivinable" como habría sido una
+ * URL pública de Blob.
  */
 export async function subirImagenGuiaTallas(nombre: string, bytes: ArrayBuffer, contentType: string): Promise<string> {
   const resultado = await put(`guia-tallas/${nombre}`, bytes, {
-    access: "public",
+    access: "private",
     addRandomSuffix: true,
     contentType,
   });
-  return resultado.url;
+  return `/api/imagenes/${resultado.pathname}`;
+}
+
+/**
+ * Lee una imagen subida por subirImagenColeccion/subirImagenGuiaTallas —
+ * la usa /api/imagenes/[...pathname] para servirla (ver la nota grande más
+ * arriba). Devuelve null si no existe (404 normal, no se loguea como error).
+ */
+export async function leerImagenPublica(pathname: string): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string } | null> {
+  try {
+    const resultado = await get(pathname, { access: "private" });
+    if (!resultado || resultado.statusCode !== 200 || !resultado.stream) return null;
+    return { stream: resultado.stream, contentType: resultado.blob.contentType };
+  } catch (err) {
+    const mensaje = err instanceof Error ? err.message : String(err);
+    if (/BlobNotFoundError|not_found/i.test(mensaje)) return null;
+    logError(`lib/blob.leerImagenPublica(${pathname})`, err, pistaBlob(mensaje));
+    throw err;
+  }
 }
 
 export async function leerColecciones(): Promise<Coleccion[]> {
@@ -308,14 +333,14 @@ export async function guardarColecciones(colecciones: Coleccion[]): Promise<void
   await escribirJson(COLECCIONES_KEY, colecciones);
 }
 
-/** Mismo patrón que subirImagenGuiaTallas: acceso público, la necesita el navegador del comprador para pintar la portada en la home sin pasar por el servidor. */
+/** Mismo patrón que subirImagenGuiaTallas: se sube privada y se sirve vía /api/imagenes — ver la nota ahí arriba. */
 export async function subirImagenColeccion(nombre: string, bytes: ArrayBuffer, contentType: string): Promise<string> {
   const resultado = await put(`colecciones/${nombre}`, bytes, {
-    access: "public",
+    access: "private",
     addRandomSuffix: true,
     contentType,
   });
-  return resultado.url;
+  return `/api/imagenes/${resultado.pathname}`;
 }
 
 // --- Historial de cargas -----------------------------------------------

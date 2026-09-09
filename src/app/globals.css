@@ -36,6 +36,17 @@
   --color-success-600: #15803d;
   --color-success-100: #eafaf0;
 
+  /* "warning" (algo nuevo/sin confirmar todavía) e "info" (edición en curso
+     de algo ya guardado) — distintos entre sí y de danger/success, que ya
+     tienen un significado fijo en la app (danger = destructivo, success =
+     confirmación de éxito). Se usan por ahora solo en los badges de estado
+     de ColeccionesConfig.tsx. */
+  --color-warning-600: #92400e;
+  --color-warning-100: #fef3c7;
+
+  --color-info-600: #1e40af;
+  --color-info-100: #dbeafe;
+
   --font-sans:
     ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
@@ -56,6 +67,10 @@
   --color-danger-100: var(--color-danger-100);
   --color-success-600: var(--color-success-600);
   --color-success-100: var(--color-success-100);
+  --color-warning-600: var(--color-warning-600);
+  --color-warning-100: var(--color-warning-100);
+  --color-info-600: var(--color-info-600);
+  --color-info-100: var(--color-info-100);
   --font-sans: var(--font-sans);
 }
 
