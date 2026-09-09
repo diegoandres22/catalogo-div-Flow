@@ -468,11 +468,15 @@ function TarjetaColeccionEditor({
           }}
           className="block w-full text-xs text-ink-700 file:mr-2 file:rounded-full file:border-0 file:bg-ink-100 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-ink-900 hover:file:bg-ink-200"
         />
-        {/* La tarjeta de la home recorta la portada a un marco fijo
-            (proporción 4:3, ver ColeccionesHome.tsx) — avisar el tamaño
-            recomendado acá evita que una foto con otra proporción se vea
-            mal encuadrada sin que el admin sepa por qué. */}
-        <p className="mt-1 text-[11px] text-ink-500">Recomendado: 1200 × 900 px (proporción 4:3). Con otra proporción, la foto se recorta para llenar el marco.</p>
+        {/* La tarjeta de la home ya NO recorta la portada (ajuste="natural"
+            en ColeccionesHome.tsx) — se ve completa, a la proporción real
+            de la foto. Como cada tarjeta puede salir con una altura
+            distinta según esa proporción, avisar acá evita que las
+            colecciones queden muy dispares entre sí en la grilla. */}
+        <p className="mt-1 text-[11px] text-ink-500">
+          La portada se muestra completa (no se recorta). Usá fotos de proporción parecida entre colecciones — por
+          ejemplo vertical, tipo revista (ej. 1000 × 1400 px) — para que las tarjetas se vean parejas en la grilla.
+        </p>
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">

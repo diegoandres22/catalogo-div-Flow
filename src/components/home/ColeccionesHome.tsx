@@ -30,14 +30,12 @@ export function ColeccionesHome({ colecciones, productos }: { colecciones: Colec
             href={href}
             className="group relative flex flex-col overflow-hidden rounded-b-2xl border border-ink-200 bg-paper-raised transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-ink-900/5"
           >
-            <div className="relative aspect-[4/3] w-full">
-              <ImagenProducto
-                src={c.imagenUrl ?? undefined}
-                alt={c.nombre}
-                sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-                className="h-full w-full transition-transform duration-300 group-hover:scale-[1.03]"
-              />
-            </div>
+            {/* ajuste="natural": sin marco fijo (nada de aspect-[4/3]/fill) —
+                la altura de la tarjeta se ajusta sola a la proporción real
+                de cada foto, así se ve siempre completa. Va directo acá
+                (sin un div contenedor aparte) para que la tarjeta siga
+                siendo una sola estructura, no una tarjeta dentro de otra. */}
+            <ImagenProducto src={c.imagenUrl ?? undefined} alt={c.nombre} ajuste="natural" />
             <div className="flex flex-col gap-0.5 p-4">
               <span className="text-base font-semibold text-ink-900">{c.nombre}</span>
               <span className="text-xs text-ink-500">
