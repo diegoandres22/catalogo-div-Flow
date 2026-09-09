@@ -7,8 +7,7 @@ export function HistorialCargas({ entradas }: { entradas: EntradaHistorial[] }) 
     <div className="mt-6 rounded-2xl border border-ink-200 p-4 sm:p-5">
       <h2 className="text-sm font-semibold text-ink-900">Historial de cargas</h2>
       <p className="mt-1 text-xs text-ink-500">
-        Cada vez que se confirma un reemplazo (o se revierte al respaldo) queda un registro acá — antes solo se veía
-        el resumen de la carga más reciente, y se perdía apenas se confirmaba la siguiente.
+        Cada vez que se confirma un reemplazo (o se revierte al respaldo) queda un registro acá.
       </p>
 
       {entradas.length === 0 ? (

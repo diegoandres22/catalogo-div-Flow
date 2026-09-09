@@ -1,10 +1,16 @@
 import Link from "next/link";
-import type { SaludCatalogo } from "@/lib/dashboard";
+import type { SaludCatalogo, ConteoComposicion } from "@/lib/dashboard";
+import { BarraGrupo } from "./GraficosComposicion";
 
 // Lo primero que se ve al entrar al panel — el objetivo de un dashboard es
 // que el administrador entienda "cómo está el negocio" en segundos, sin
 // tener que ir a buscar cada dato por separado en distintas secciones.
-export function TarjetasSalud({ salud }: { salud: SaludCatalogo }) {
+//
+// "Por marca" vive acá (no en GraficosComposicion) porque con 5 tarjetas en
+// una grilla de 3 columnas queda un lugar libre junto a "Antigüedad del
+// catálogo" — en vez de dejarlo vacío, se aprovecha para el grupo de barras
+// más corto (pocas marcas), y abajo queda más espacio para "Por línea".
+export function TarjetasSalud({ salud, porMarca }: { salud: SaludCatalogo; porMarca: ConteoComposicion[] }) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
       <Tarjeta etiqueta="Productos activos" valor={String(salud.productosActivos)} />
@@ -35,6 +41,8 @@ export function TarjetasSalud({ salud }: { salud: SaludCatalogo }) {
         enfasis={salud.antiguedadDias !== null && salud.antiguedadDias >= 14}
         href="/admin/catalogo"
       />
+
+      <BarraGrupo titulo="Por marca" datos={porMarca} paramUrl="marca" />
     </div>
   );
 }
