@@ -19,7 +19,14 @@ const VACIA: ConfigSitio = { whatsappVentas: null, descripcionEmpresa: null, rif
 // Todos los campos son opcionales: si se dejan vacíos acá, cada lugar que
 // los usa cae a su valor por defecto (ver ConfigSitio en lib/types.ts).
 export function ConfiguracionForm() {
-  const [config, setConfig] = useState<ConfigSitio>(VACIA);
+  // "guardado" es lo último confirmado por el servidor — lo que se muestra
+  // en la vista de lectura. "borrador" es una copia aparte que solo existe
+  // mientras se edita (arranca de "guardado" al presionar "Editar"), para
+  // que los inputs no queden nunca visibles/editables por default: hay que
+  // pedir explícitamente entrar en modo edición.
+  const [guardado, setGuardado] = useState<ConfigSitio>(VACIA);
+  const [borrador, setBorrador] = useState<ConfigSitio>(VACIA);
+  const [editando, setEditando] = useState(false);
   const [errores, setErrores] = useState<ErroresConfigSitio>({});
   const [cargandoInicial, setCargandoInicial] = useState(true);
   const [guardando, setGuardando] = useState(false);
@@ -33,7 +40,7 @@ export function ConfiguracionForm() {
         if (!resp.ok || !data.ok || !data.config) {
           throw new Error(data.mensaje ?? "No se pudo cargar la configuración actual.");
         }
-        if (!cancelado) setConfig(data.config);
+        if (!cancelado) setGuardado(data.config);
       } catch (err) {
         logError("ConfiguracionForm.cargar", err, "No se pudo leer la configuración actual desde Vercel Blob.");
         if (!cancelado) toast.error("No se pudo cargar la configuración actual.");
@@ -46,19 +53,30 @@ export function ConfiguracionForm() {
     };
   }, []);
 
+  function empezarEdicion() {
+    setBorrador(guardado);
+    setErrores({});
+    setEditando(true);
+  }
+
+  function cancelarEdicion() {
+    setEditando(false);
+    setErrores({});
+  }
+
   // Igual que CarritoDrawer con los datos del comprador: limpia el error de
   // ESE campo apenas se vuelve a tocar, en vez de esperar al próximo intento
   // de guardar para que desaparezca.
   function campo<K extends keyof ConfigSitio>(clave: K, valor: string) {
-    setConfig({ ...config, [clave]: valor });
+    setBorrador({ ...borrador, [clave]: valor });
     if (errores[clave as keyof ErroresConfigSitio]) setErrores({ ...errores, [clave]: undefined });
   }
 
   async function guardar() {
     const campos = {
-      whatsappVentas: (config.whatsappVentas ?? "").trim(),
-      descripcionEmpresa: (config.descripcionEmpresa ?? "").trim(),
-      rif: (config.rif ?? "").trim(),
+      whatsappVentas: (borrador.whatsappVentas ?? "").trim(),
+      descripcionEmpresa: (borrador.descripcionEmpresa ?? "").trim(),
+      rif: (borrador.rif ?? "").trim(),
     };
 
     const erroresActuales = validarConfigSitio(campos);
@@ -87,7 +105,8 @@ export function ConfiguracionForm() {
         toast.error(data.mensaje ?? "No se pudo guardar la configuración.");
         return;
       }
-      setConfig(data.config);
+      setGuardado(data.config);
+      setEditando(false);
       toast.success("Configuración guardada.");
     } catch (err) {
       logError("ConfiguracionForm.guardar", err, "No se pudo conectar con el servidor — revisá tu conexión a internet y probá de nuevo.");
@@ -99,11 +118,24 @@ export function ConfiguracionForm() {
 
   return (
     <div className="rounded-2xl border border-ink-200 p-4 sm:p-5">
-      <h2 className="text-sm font-semibold text-ink-900">Datos generales</h2>
-      <p className="mt-1 text-xs text-ink-500">
-        Número de WhatsApp de ventas y datos de contacto que se muestran en el catálogo público — antes solo se
-        podían cambiar desde Vercel.
-      </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold text-ink-900">Datos generales</h2>
+          <p className="mt-1 text-xs text-ink-500">
+            Número de WhatsApp de ventas y datos de contacto que se muestran en el catálogo público — antes solo se
+            podían cambiar desde Vercel.
+          </p>
+        </div>
+        {!cargandoInicial && !editando && (
+          <button
+            type="button"
+            onClick={empezarEdicion}
+            className="shrink-0 rounded-full border border-ink-200 px-3.5 py-1.5 text-xs font-medium text-ink-900 transition-colors hover:border-ink-900"
+          >
+            Editar
+          </button>
+        )}
+      </div>
 
       {cargandoInicial ? (
         <div className="mt-4 space-y-3" aria-label="Cargando configuración actual" role="status">
@@ -111,13 +143,23 @@ export function ConfiguracionForm() {
           <div className="skeleton h-20 rounded-lg" />
           <div className="skeleton h-14 rounded-lg" />
         </div>
+      ) : !editando ? (
+        // Vista de lectura: texto plano, nunca inputs — hasta que se pida
+        // "Editar" a propósito no hay nada que se pueda tocar por accidente,
+        // ni ambigüedad sobre si esto es un formulario en blanco o valores
+        // ya guardados.
+        <div className="mt-4 flex flex-col gap-3">
+          <FilaLectura etiqueta="WhatsApp de ventas" valor={guardado.whatsappVentas} placeholder="Sin configurar — usa el número de Vercel" />
+          <FilaLectura etiqueta="Descripción de la empresa" valor={guardado.descripcionEmpresa} placeholder="Sin configurar — usa el texto por defecto" />
+          <FilaLectura etiqueta="RIF" valor={guardado.rif} placeholder="Sin configurar — usa el RIF por defecto" />
+        </div>
       ) : (
         <div className="mt-4 flex flex-col gap-4">
           <Campo
             id="config-whatsappVentas"
             etiqueta="WhatsApp de ventas"
             ayuda="Formato internacional, solo dígitos (ej: 584121234567, sin '+' ni espacios). Vacío = se usa el configurado en Vercel."
-            value={config.whatsappVentas ?? ""}
+            value={borrador.whatsappVentas ?? ""}
             onChange={(v) => campo("whatsappVentas", v)}
             type="tel"
             maxLength={WHATSAPP_VENTAS_MAX}
@@ -127,7 +169,7 @@ export function ConfiguracionForm() {
             id="config-descripcionEmpresa"
             etiqueta="Descripción de la empresa"
             ayuda="Se muestra en el pie de página del catálogo. Vacío = se usa el texto por defecto."
-            value={config.descripcionEmpresa ?? ""}
+            value={borrador.descripcionEmpresa ?? ""}
             onChange={(v) => campo("descripcionEmpresa", v)}
             maxLength={DESCRIPCION_EMPRESA_MAX}
             error={errores.descripcionEmpresa}
@@ -136,7 +178,7 @@ export function ConfiguracionForm() {
             id="config-rif"
             etiqueta="RIF"
             ayuda="Vacío = se usa el RIF por defecto."
-            value={config.rif ?? ""}
+            value={borrador.rif ?? ""}
             onChange={(v) => campo("rif", v)}
             maxLength={RIF_MAX}
             error={errores.rif}
@@ -144,14 +186,35 @@ export function ConfiguracionForm() {
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={guardar}
-        disabled={guardando || cargandoInicial}
-        className="mt-4 rounded-full bg-ink-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-ink-700 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {guardando ? "Guardando…" : "Guardar cambios"}
-      </button>
+      {editando && (
+        <div className="mt-4 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={guardar}
+            disabled={guardando}
+            className="rounded-full bg-ink-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-ink-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {guardando ? "Guardando…" : "Guardar cambios"}
+          </button>
+          <button
+            type="button"
+            onClick={cancelarEdicion}
+            disabled={guardando}
+            className="rounded-full px-4 py-2 text-sm font-medium text-ink-500 transition-colors hover:text-ink-900 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FilaLectura({ etiqueta, valor, placeholder }: { etiqueta: string; valor: string | null; placeholder: string }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-xs font-medium text-ink-500">{etiqueta}</span>
+      {valor ? <span className="text-sm text-ink-900">{valor}</span> : <span className="text-sm italic text-ink-500">{placeholder}</span>}
     </div>
   );
 }

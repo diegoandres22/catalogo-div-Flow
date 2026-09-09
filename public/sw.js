@@ -14,13 +14,17 @@
 // Estrategia por tipo de recurso:
 //  - Páginas del catálogo (HTML, navegación, mismo origen, no /api/): red
 //    primero (siempre la versión más nueva si hay señal), y si la red
-//    falla, se lee de la caché de páginas SIN escribir nada — con dos
-//    niveles de respaldo (ver navegarConRespaldo):
+//    falla, se lee de la caché de páginas SIN escribir nada — con tres
+//    niveles de respaldo (ver navegarConRespaldo). La descarga ahora es POR
+//    MARCA (ver DescargaOffline.tsx: con ~1600+ variantes, todo el catálogo
+//    de una vez es demasiado), así que no hay una única "grilla completa"
+//    fija — puede haber cero, una o varias marcas descargadas:
 //      1) la página exacta, si fue descargada;
 //      2) si la URL es "/" con algún filtro/colección que no se descargó
-//         puntualmente, la grilla completa ("/?ver=todo"), que si se
-//         descargó siempre trae todo el catálogo igual;
-//      3) offline.html, si ninguna de las dos anteriores está.
+//         puntualmente, CUALQUIER grilla por marca ya descargada
+//         ("/?marca=…") sirve de mejor esfuerzo — normalmente hay una sola;
+//      3) la landing ("/" sin query), si se descargó;
+//      4) offline.html, si ninguna de las anteriores está.
 //  - Fotos de producto (cdn.shopify.com) y portadas/guía de tallas servidas
 //    por /api/imagenes/* : solo lectura de caché — si no están, se pide a
 //    la red (sin guardar la respuesta).
@@ -40,7 +44,6 @@ const CACHE_ASSETS = `catalogo-assets-${CACHE_VERSION}`;
 const CACHE_IMAGENES = `catalogo-imagenes-${CACHE_VERSION}`;
 const CACHES_VIGENTES = new Set([CACHE_PAGINAS, CACHE_ASSETS, CACHE_IMAGENES]);
 const OFFLINE_URL = "/offline.html";
-const GRILLA_COMPLETA_URL = "/?ver=todo";
 
 self.addEventListener("install", (evento) => {
   self.skipWaiting();
@@ -89,15 +92,29 @@ function esRutaAdmin(url) {
 }
 
 // Página cacheada exacta si existe; si es "/" con query (colección/filtro
-// que no se descargó puntualmente) cae a la grilla completa; por último
-// offline.html. Nunca escribe caché — ver la nota grande de arriba.
+// que no se descargó puntualmente) cae a cualquier grilla por marca ya
+// descargada, y si no a la landing ("/" sin query); por último offline.html.
+// Nunca escribe caché — ver la nota grande de arriba.
 async function buscarPaginaEnCache(cache, peticion, url) {
   const enCache = await cache.match(peticion);
   if (enCache) return enCache;
 
   if (url.origin === self.location.origin && url.pathname === "/") {
-    const grillaCompleta = await cache.match(GRILLA_COMPLETA_URL);
-    if (grillaCompleta) return grillaCompleta;
+    const claves = await cache.keys();
+    // Normalmente hay una sola marca descargada — con más de una, cualquiera
+    // sirve igual de bien como "mejor esfuerzo" (no es la colección exacta
+    // que se pidió, pero es mejor que offline.html).
+    const grillaPorMarca = claves.find((r) => {
+      const u = new URL(r.url);
+      return u.origin === self.location.origin && u.pathname === "/" && u.searchParams.has("marca");
+    });
+    if (grillaPorMarca) {
+      const respuesta = await cache.match(grillaPorMarca);
+      if (respuesta) return respuesta;
+    }
+
+    const landing = await cache.match("/");
+    if (landing) return landing;
   }
 
   return cache.match(OFFLINE_URL);

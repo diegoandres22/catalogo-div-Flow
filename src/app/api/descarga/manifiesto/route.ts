@@ -1,10 +1,17 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { leerCatalogoPublico, leerColecciones, leerGuiaTallas } from "@/lib/blob";
 import { logError } from "@/lib/logger";
 
-// Manifiesto para la "descarga offline completa" (ver DescargaOffline.tsx):
-// todo lo que hace falta guardar en Cache API para que el vendedor pueda
-// navegar el catálogo entero sin señal, no solo lo que haya visitado antes.
+// Manifiesto para la "descarga offline" (ver DescargaOffline.tsx) — POR
+// MARCA, no el catálogo entero: con ~1600+ variantes, bajar todo de una vez
+// es lento, pesado en datos móviles y con esa cantidad de ítems el riesgo
+// de que algunos fallen (timeout, red inestable) es alto. Un vendedor
+// normalmente solo necesita la marca que vende.
+//
+// Sin "?marca=": listado liviano de marcas disponibles (para armar el
+// selector) — NO arma el manifiesto completo de páginas/imágenes.
+// Con "?marca=X": manifiesto completo, acotado a los productos de esa
+// marca.
 //
 // "paginas" son rutas del propio sitio (mismo origen) — el cliente las pide
 // con fetch() normal (sin headers de RSC) para obtener el documento HTML
@@ -12,34 +19,42 @@ import { logError } from "@/lib/logger";
 // páginas del service worker (ver public/sw.js).
 //
 // "imagenes" son URLs completas: fotos de producto (cdn.shopify.com) y
-// portadas/guía de tallas servidas por /api/imagenes/[...pathname] (que SÍ
-// hay que cachear, a diferencia del resto de /api/* — ver la nota en sw.js).
+// portadas de colección / guía de tallas servidas por
+// /api/imagenes/[...pathname] (que SÍ hay que cachear, a diferencia del
+// resto de /api/* — ver la nota en sw.js).
 //
 // No incluye assets de _next/static: esos los descubre el propio cliente
 // (DescargaOffline.tsx) a partir del HTML de cada página, porque son los
-// que Next generó para ESTE build puntual y no vale la pena duplicar esa
-// lógica acá.
-export async function GET() {
+// que Next generó para ESTE build puntual.
+export async function GET(request: NextRequest) {
   try {
-    const [catalogo, colecciones, guiaTallas] = await Promise.all([
-      leerCatalogoPublico(),
-      leerColecciones(),
-      leerGuiaTallas(),
-    ]);
+    const marca = request.nextUrl.searchParams.get("marca");
+    const catalogo = await leerCatalogoPublico();
 
     if (!catalogo || catalogo.productos.length === 0) {
       return NextResponse.json({ ok: false, mensaje: "Todavía no hay catálogo publicado." }, { status: 404 });
     }
 
-    // "/?ver=todo" es la grilla completa sin filtrar (ver ColeccionesHome) —
-    // se guarda siempre, sea o no que haya colecciones configuradas, porque
-    // es el fallback que usa el service worker cuando el vendedor entra
-    // offline a un link de colección/filtro que no se guardó puntualmente
-    // (ver esFallbackColeccion en sw.js).
-    const paginas = new Set<string>(["/", "/?ver=todo"]);
+    if (!marca) {
+      const marcas = Array.from(new Set(catalogo.productos.map((p) => p.marca))).sort((a, b) => a.localeCompare(b, "es"));
+      return NextResponse.json({ ok: true, generadoEn: catalogo.generadoEn, marcas });
+    }
+
+    const productosMarca = catalogo.productos.filter((p) => p.marca === marca);
+    if (productosMarca.length === 0) {
+      return NextResponse.json({ ok: false, mensaje: `No hay productos de "${marca}" en el catálogo vigente.` }, { status: 404 });
+    }
+
+    const [colecciones, guiaTallas] = await Promise.all([leerColecciones(), leerGuiaTallas()]);
+
+    // "/?marca=X" es la grilla de esa marca (Filtros.tsx ya sabe leer ese
+    // query param) — el fallback del service worker cae acá cuando el
+    // vendedor entra offline a un link de colección/filtro que no se
+    // descargó puntualmente (ver buscarPaginaEnCache en sw.js).
+    const paginas = new Set<string>(["/", `/?marca=${encodeURIComponent(marca)}`]);
     const imagenes = new Set<string>();
 
-    for (const producto of catalogo.productos) {
+    for (const producto of productosMarca) {
       paginas.add(`/producto/${producto.id}`);
       for (const color of producto.colores) {
         for (const foto of color.fotos) {
@@ -48,6 +63,9 @@ export async function GET() {
       }
     }
 
+    // Portadas de TODAS las colecciones (no solo las de esta marca): son
+    // livianas y así la landing ("/") se ve completa offline aunque las
+    // otras colecciones no correspondan a la marca descargada.
     for (const coleccion of colecciones) {
       if (coleccion.imagenUrl) imagenes.add(coleccion.imagenUrl);
     }
@@ -58,6 +76,7 @@ export async function GET() {
     return NextResponse.json({
       ok: true,
       generadoEn: catalogo.generadoEn,
+      marca,
       paginas: Array.from(paginas),
       imagenes: Array.from(imagenes),
     });

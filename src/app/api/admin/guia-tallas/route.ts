@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
     for (const campo of CAMPOS satisfies readonly Campo[]) {
       const archivo = formData.get(`${campo}Archivo`);
       const link = String(formData.get(`${campo}Link`) ?? "").trim();
+      const eliminar = formData.get(`${campo}Eliminar`) === "1";
 
       // Si en esta carga vino un archivo Y un link para el mismo campo, gana
       // el archivo (es lo que el admin acaba de subir a propósito) — el link
@@ -55,9 +56,14 @@ export async function POST(request: NextRequest) {
           );
         }
         nueva[campo] = link;
+      } else if (eliminar) {
+        // Botón "Eliminar" del panel — deja el campo vacío en vez de tal
+        // cual estaba (a diferencia del caso de abajo, en el que no se tocó
+        // nada este campo).
+        nueva[campo] = null;
       }
-      // Si no vino ni archivo ni link para este campo, se deja tal cual
-      // estaba (nueva ya arrancó como copia de "actual").
+      // Si no vino archivo, link, ni pedido de eliminar para este campo, se
+      // deja tal cual estaba (nueva ya arrancó como copia de "actual").
     }
 
     await guardarGuiaTallas(nueva);
