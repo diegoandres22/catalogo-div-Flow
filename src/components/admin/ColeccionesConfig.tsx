@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import { toast } from "sonner";
 import { logError } from "@/lib/logger";
+import { prepararImagenParaSubir } from "@/lib/imagenCliente";
 import { ImagenProducto } from "@/components/catalogo/ImagenProducto";
 import type { Coleccion, FiltroColeccion } from "@/lib/types";
 
@@ -26,13 +27,30 @@ function coleccionVacia(): Coleccion {
   return { id: crypto.randomUUID(), nombre: "", imagenUrl: null, filtro: {} };
 }
 
+/** Chips de resumen para la vista de solo lectura — "Marca: VOLPE", etc., o "Todo el catálogo" si no filtra nada. */
+function resumenFiltro(filtro: FiltroColeccion): string[] {
+  const partes = CAMPO_FILTRO.filter(({ campo }) => filtro[campo]).map(({ campo, etiqueta }) => `${etiqueta}: ${filtro[campo]}`);
+  return partes.length > 0 ? partes : ["Todo el catálogo"];
+}
+
 // El admin ahora puede crear/renombrar/quitar colecciones libremente (no son
 // 6 slots fijos) — ver la respuesta de Diego a la pregunta de "modelo de
 // datos" del pedido original. El orden de la lista en pantalla ES el orden
 // de las tarjetas en la home (botones subir/bajar en vez de un campo
 // "orden" aparte).
+//
+// Vista vs. edición: una colección YA GUARDADA arranca en modo lectura
+// (TarjetaColeccionVista) — antes se veía siempre como formulario abierto,
+// sin forma de distinguir "esto ya está guardado" de "esto es nuevo/sin
+// guardar" (queja de Diego). Solo una colección recién agregada con "+
+// Agregar colección", o una que el admin tocó explícitamente con "Editar",
+// se muestra como formulario (TarjetaColeccionEditor). "guardadas" guarda
+// la última versión confirmada por el servidor — es lo que "Cancelar"
+// restaura al cerrar una edición sin guardar.
 export function ColeccionesConfig({ opciones, coleccionesIniciales }: { opciones: Opciones; coleccionesIniciales: Coleccion[] }) {
   const [colecciones, setColecciones] = useState<Coleccion[]>(coleccionesIniciales);
+  const [guardadas, setGuardadas] = useState<Coleccion[]>(coleccionesIniciales);
+  const [idsEnEdicion, setIdsEnEdicion] = useState<Set<string>>(new Set());
   const [subiendoId, setSubiendoId] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [errores, setErrores] = useState<Record<string, string>>({});
@@ -58,8 +76,7 @@ export function ColeccionesConfig({ opciones, coleccionesIniciales }: { opciones
     });
   }
 
-  function eliminar(id: string) {
-    setColecciones((prev) => prev.filter((c) => c.id !== id));
+  function limpiarError(id: string) {
     setErrores((prev) => {
       if (!(id in prev)) return prev;
       const resto = { ...prev };
@@ -68,14 +85,64 @@ export function ColeccionesConfig({ opciones, coleccionesIniciales }: { opciones
     });
   }
 
-  async function subirImagen(id: string, archivo: File) {
+  function eliminar(id: string) {
+    setColecciones((prev) => prev.filter((c) => c.id !== id));
+    setIdsEnEdicion((prev) => {
+      if (!prev.has(id)) return prev;
+      const copia = new Set(prev);
+      copia.delete(id);
+      return copia;
+    });
+    limpiarError(id);
+  }
+
+  function editar(id: string) {
+    setIdsEnEdicion((prev) => new Set(prev).add(id));
+  }
+
+  /** Cierra el formulario sin guardar: si la colección ya existía, vuelve a sus valores guardados; si es nueva (recién agregada, nunca guardada), se descarta directamente. */
+  function cancelar(id: string) {
+    const original = guardadas.find((g) => g.id === id);
+    if (original) {
+      setColecciones((prev) => prev.map((c) => (c.id === id ? original : c)));
+      setIdsEnEdicion((prev) => {
+        const copia = new Set(prev);
+        copia.delete(id);
+        return copia;
+      });
+      limpiarError(id);
+    } else {
+      eliminar(id);
+    }
+  }
+
+  async function subirImagen(id: string, archivoOriginal: File) {
     setSubiendoId(id);
     try {
+      const archivo = await prepararImagenParaSubir(archivoOriginal);
       const formData = new FormData();
       formData.set("archivo", archivo);
       const resp = await fetch("/api/admin/colecciones/imagen", { method: "POST", body: formData });
+
+      if (!resp.ok) {
+        // Un 413 (o cualquier otro corte antes de llegar a nuestro route
+        // handler) no siempre trae JSON — leerlo como texto primero evita
+        // el "Unexpected token" al intentar parsear HTML/texto plano.
+        const texto = await resp.text();
+        let mensaje =
+          resp.status === 413 ? "La imagen sigue pesando demasiado — probá con otra o recortala." : "No se pudo subir la imagen.";
+        try {
+          const data = JSON.parse(texto) as { mensaje?: string };
+          if (data.mensaje) mensaje = data.mensaje;
+        } catch {
+          // No era JSON — se queda con el mensaje genérico de arriba.
+        }
+        toast.error(mensaje);
+        return;
+      }
+
       const data = (await resp.json()) as { ok: boolean; url?: string; mensaje?: string };
-      if (!resp.ok || !data.ok || !data.url) {
+      if (!data.ok || !data.url) {
         toast.error(data.mensaje ?? "No se pudo subir la imagen.");
         return;
       }
@@ -111,7 +178,12 @@ export function ColeccionesConfig({ opciones, coleccionesIniciales }: { opciones
         toast.error(data.mensaje ?? "No se pudieron guardar las colecciones.");
         return;
       }
+      // Guardado exitoso = ya no queda ningún formulario abierto: TODO lo
+      // que se ve ahora es, por definición, lo que hay guardado en el
+      // servidor — ver la nota grande de arriba.
       setColecciones(data.colecciones);
+      setGuardadas(data.colecciones);
+      setIdsEnEdicion(new Set());
       toast.success("Colecciones actualizadas.");
     } catch (err) {
       logError("ColeccionesConfig.guardar", err, "No se pudo conectar con el servidor — revisá tu conexión a internet y probá de nuevo.");
@@ -136,30 +208,51 @@ export function ColeccionesConfig({ opciones, coleccionesIniciales }: { opciones
         </p>
       )}
 
-      <div className="mt-4 flex flex-col gap-4">
-        {colecciones.map((c, i) => (
-          <TarjetaColeccionEditor
-            key={c.id}
-            coleccion={c}
-            opciones={opciones}
-            error={errores[c.id]}
-            subiendo={subiendoId === c.id}
-            esPrimera={i === 0}
-            esUltima={i === colecciones.length - 1}
-            onNombre={(nombre) => actualizar(c.id, { nombre })}
-            onFiltro={(campo, valor) => actualizarFiltro(c.id, campo, valor)}
-            onImagen={(archivo) => subirImagen(c.id, archivo)}
-            onMoverArriba={() => mover(c.id, -1)}
-            onMoverAbajo={() => mover(c.id, 1)}
-            onEliminar={() => eliminar(c.id)}
-          />
-        ))}
+      <div className="mt-4 flex flex-col gap-3">
+        {colecciones.map((c, i) =>
+          idsEnEdicion.has(c.id) ? (
+            <TarjetaColeccionEditor
+              key={c.id}
+              coleccion={c}
+              opciones={opciones}
+              error={errores[c.id]}
+              subiendo={subiendoId === c.id}
+              guardando={guardando}
+              esNueva={!guardadas.some((g) => g.id === c.id)}
+              esPrimera={i === 0}
+              esUltima={i === colecciones.length - 1}
+              onNombre={(nombre) => actualizar(c.id, { nombre })}
+              onFiltro={(campo, valor) => actualizarFiltro(c.id, campo, valor)}
+              onImagen={(archivo) => subirImagen(c.id, archivo)}
+              onMoverArriba={() => mover(c.id, -1)}
+              onMoverAbajo={() => mover(c.id, 1)}
+              onEliminar={() => eliminar(c.id)}
+              onGuardar={guardar}
+              onCancelar={() => cancelar(c.id)}
+            />
+          ) : (
+            <TarjetaColeccionVista
+              key={c.id}
+              coleccion={c}
+              esPrimera={i === 0}
+              esUltima={i === colecciones.length - 1}
+              onMoverArriba={() => mover(c.id, -1)}
+              onMoverAbajo={() => mover(c.id, 1)}
+              onEditar={() => editar(c.id)}
+              onEliminar={() => eliminar(c.id)}
+            />
+          ),
+        )}
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <button
           type="button"
-          onClick={() => setColecciones((prev) => [...prev, coleccionVacia()])}
+          onClick={() => {
+            const nueva = coleccionVacia();
+            setColecciones((prev) => [...prev, nueva]);
+            editar(nueva.id);
+          }}
           className="rounded-full border border-ink-200 px-4 py-2 text-sm font-medium text-ink-900 transition-colors hover:border-ink-900"
         >
           + Agregar colección
@@ -177,11 +270,88 @@ export function ColeccionesConfig({ opciones, coleccionesIniciales }: { opciones
   );
 }
 
+/** Colección ya guardada — solo lectura. Reordenar (↑↓) y quitar siguen disponibles acá mismo; para tocar nombre/imagen/filtro hay que entrar a "Editar" explícitamente (ver la nota grande arriba). */
+function TarjetaColeccionVista({
+  coleccion,
+  esPrimera,
+  esUltima,
+  onMoverArriba,
+  onMoverAbajo,
+  onEditar,
+  onEliminar,
+}: {
+  coleccion: Coleccion;
+  esPrimera: boolean;
+  esUltima: boolean;
+  onMoverArriba: () => void;
+  onMoverAbajo: () => void;
+  onEditar: () => void;
+  onEliminar: () => void;
+}) {
+  return (
+    <div className="rounded-xl border border-ink-200 bg-paper-raised p-3 sm:p-4">
+      <div className="flex items-start gap-3">
+        <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-ink-200">
+          <ImagenProducto src={coleccion.imagenUrl ?? undefined} alt={coleccion.nombre} className="h-full w-full" sizes="64px" />
+        </div>
+
+        <div className="flex-1">
+          <span className="block text-sm font-semibold text-ink-900">{coleccion.nombre}</span>
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {resumenFiltro(coleccion.filtro).map((etiqueta) => (
+              <span key={etiqueta} className="rounded-md border border-ink-200 bg-ink-100 px-1.5 py-0.5 text-[11px] text-ink-700">
+                {etiqueta}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex shrink-0 flex-col gap-1">
+          <button
+            type="button"
+            onClick={onMoverArriba}
+            disabled={esPrimera}
+            aria-label="Mover arriba"
+            className="rounded-lg border border-ink-200 px-2 py-1 text-xs text-ink-700 disabled:cursor-not-allowed disabled:opacity-30"
+          >
+            ↑
+          </button>
+          <button
+            type="button"
+            onClick={onMoverAbajo}
+            disabled={esUltima}
+            aria-label="Mover abajo"
+            className="rounded-lg border border-ink-200 px-2 py-1 text-xs text-ink-700 disabled:cursor-not-allowed disabled:opacity-30"
+          >
+            ↓
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={onEditar}
+          className="rounded-full border border-ink-200 px-3 py-1.5 text-xs font-medium text-ink-900 transition-colors hover:border-ink-900"
+        >
+          Editar
+        </button>
+        <button type="button" onClick={onEliminar} className="text-xs font-medium text-danger-600 underline-offset-2 hover:underline">
+          Quitar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Formulario abierto — colección nueva (sin guardar todavía) o una guardada que el admin tocó con "Editar". El borde de acento distingue de un vistazo esta tarjeta de las de solo lectura. */
 function TarjetaColeccionEditor({
   coleccion,
   opciones,
   error,
   subiendo,
+  guardando,
+  esNueva,
   esPrimera,
   esUltima,
   onNombre,
@@ -190,11 +360,15 @@ function TarjetaColeccionEditor({
   onMoverArriba,
   onMoverAbajo,
   onEliminar,
+  onGuardar,
+  onCancelar,
 }: {
   coleccion: Coleccion;
   opciones: Opciones;
   error?: string;
   subiendo: boolean;
+  guardando: boolean;
+  esNueva: boolean;
   esPrimera: boolean;
   esUltima: boolean;
   onNombre: (v: string) => void;
@@ -203,6 +377,8 @@ function TarjetaColeccionEditor({
   onMoverArriba: () => void;
   onMoverAbajo: () => void;
   onEliminar: () => void;
+  onGuardar: () => void;
+  onCancelar: () => void;
 }) {
   const idNombre = useId();
   const OPCIONES_POR_CAMPO: Record<keyof FiltroColeccion, string[]> = {
@@ -214,7 +390,11 @@ function TarjetaColeccionEditor({
   };
 
   return (
-    <div className="rounded-xl border border-ink-200 p-3 sm:p-4">
+    <div className="rounded-xl border-2 border-accent-600 bg-paper-raised p-3 sm:p-4">
+      <span className="mb-2 inline-block rounded-md bg-accent-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-accent-700">
+        {esNueva ? "Colección nueva — sin guardar" : "Editando"}
+      </span>
+
       <div className="flex items-start gap-3">
         <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-ink-200">
           <ImagenProducto src={coleccion.imagenUrl ?? undefined} alt={coleccion.nombre || "Colección"} className="h-full w-full" sizes="64px" />
@@ -296,13 +476,31 @@ function TarjetaColeccionEditor({
         ))}
       </div>
 
-      <button
-        type="button"
-        onClick={onEliminar}
-        className="mt-3 text-xs font-medium text-danger-600 underline-offset-2 hover:underline"
-      >
-        Quitar colección
-      </button>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={onGuardar}
+          disabled={guardando}
+          className="rounded-full bg-ink-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-ink-700 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {guardando ? "Guardando…" : "Guardar"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancelar}
+          disabled={guardando}
+          className="text-xs font-medium text-ink-500 underline-offset-2 hover:underline disabled:cursor-not-allowed"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          onClick={onEliminar}
+          className="ml-auto text-xs font-medium text-danger-600 underline-offset-2 hover:underline"
+        >
+          Quitar colección
+        </button>
+      </div>
     </div>
   );
 }
