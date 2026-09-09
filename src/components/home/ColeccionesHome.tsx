@@ -28,7 +28,7 @@ export function ColeccionesHome({ colecciones, productos }: { colecciones: Colec
           <Link
             key={c.id}
             href={href}
-            className="group relative flex flex-col overflow-hidden rounded-2xl border border-ink-200 bg-paper-raised transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-ink-900/5"
+            className="group relative flex flex-col overflow-hidden rounded-b-2xl border border-ink-200 bg-paper-raised transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-ink-900/5"
           >
             <div className="relative aspect-[4/3] w-full">
               <ImagenProducto
