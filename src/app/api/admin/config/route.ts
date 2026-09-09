@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { guardarConfigSitio, leerConfigSitio } from "@/lib/blob";
 import type { ConfigSitio } from "@/lib/types";
 import { logError, pistaBlob } from "@/lib/logger";
+import { validarConfigSitio } from "@/lib/validarConfigSitio";
 
 // Config operativa del sitio (WhatsApp de ventas, datos de contacto del
 // footer) — Propuesta 10. Mismo patrón que /api/admin/guia-tallas: GET
@@ -29,11 +30,13 @@ export async function POST(request: NextRequest) {
     const descripcionEmpresa = typeof body.descripcionEmpresa === "string" ? body.descripcionEmpresa.trim() : "";
     const rif = typeof body.rif === "string" ? body.rif.trim() : "";
 
-    if (whatsappVentas && whatsappVentas.replace(/\D/g, "").length < 10) {
-      return NextResponse.json(
-        { ok: false, mensaje: "El WhatsApp de ventas debe tener al menos 10 dígitos (formato internacional, sin '+' ni espacios)." },
-        { status: 400 },
-      );
+    // Misma validación que el formulario del panel (ConfiguracionForm) —
+    // acá es la última línea de defensa: el form ya no debería dejar pasar
+    // nada de esto, pero la API no confía únicamente en el cliente.
+    const errores = validarConfigSitio({ whatsappVentas, descripcionEmpresa, rif });
+    const primerError = errores.whatsappVentas ?? errores.descripcionEmpresa ?? errores.rif;
+    if (primerError) {
+      return NextResponse.json({ ok: false, mensaje: primerError }, { status: 400 });
     }
 
     const config: ConfigSitio = {

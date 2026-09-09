@@ -23,6 +23,12 @@ export function compararCatalogos(actual: Catalogo | null, nuevo: Catalogo): Dif
       diff.nuevos.push({ modelo: p.modelo, marca: p.marca });
       continue;
     }
+    // El "anterior" puede venir de un catálogo publicado con un formato
+    // previo a la agrupación por color (sin colores[] todavía) — no hay con
+    // qué comparar el precio en ese caso. Se omite solo el diff de precio de
+    // ESE producto en vez de romper toda la carga (rangoPrecioProducto
+    // asume colores[] siempre presente, ver lib/producto.ts).
+    if (!Array.isArray(anterior.colores) || anterior.colores.length === 0) continue;
     const precioAntes = rangoPrecioProducto(anterior).min;
     const precioDespues = rangoPrecioProducto(p).min;
     if (Math.abs(precioAntes - precioDespues) >= UMBRAL_CAMBIO_PRECIO) {

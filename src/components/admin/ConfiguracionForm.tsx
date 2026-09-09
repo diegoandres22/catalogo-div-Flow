@@ -4,6 +4,13 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { logError } from "@/lib/logger";
 import type { ConfigSitio } from "@/lib/types";
+import {
+  DESCRIPCION_EMPRESA_MAX,
+  RIF_MAX,
+  WHATSAPP_VENTAS_MAX,
+  validarConfigSitio,
+  type ErroresConfigSitio,
+} from "@/lib/validarConfigSitio";
 
 const VACIA: ConfigSitio = { whatsappVentas: null, descripcionEmpresa: null, rif: null };
 
@@ -13,6 +20,7 @@ const VACIA: ConfigSitio = { whatsappVentas: null, descripcionEmpresa: null, rif
 // los usa cae a su valor por defecto (ver ConfigSitio en lib/types.ts).
 export function ConfiguracionForm() {
   const [config, setConfig] = useState<ConfigSitio>(VACIA);
+  const [errores, setErrores] = useState<ErroresConfigSitio>({});
   const [cargandoInicial, setCargandoInicial] = useState(true);
   const [guardando, setGuardando] = useState(false);
 
@@ -38,16 +46,44 @@ export function ConfiguracionForm() {
     };
   }, []);
 
+  // Igual que CarritoDrawer con los datos del comprador: limpia el error de
+  // ESE campo apenas se vuelve a tocar, en vez de esperar al próximo intento
+  // de guardar para que desaparezca.
+  function campo<K extends keyof ConfigSitio>(clave: K, valor: string) {
+    setConfig({ ...config, [clave]: valor });
+    if (errores[clave as keyof ErroresConfigSitio]) setErrores({ ...errores, [clave]: undefined });
+  }
+
   async function guardar() {
+    const campos = {
+      whatsappVentas: (config.whatsappVentas ?? "").trim(),
+      descripcionEmpresa: (config.descripcionEmpresa ?? "").trim(),
+      rif: (config.rif ?? "").trim(),
+    };
+
+    const erroresActuales = validarConfigSitio(campos);
+    setErrores(erroresActuales);
+    if (Object.keys(erroresActuales).length > 0) {
+      // Mensaje inline junto al campo (abajo), no un toast genérico — mismo
+      // criterio que el formulario del carrito: se enfoca el primer campo
+      // con error para que quede claro qué corregir sin leer todo el form.
+      const primerCampoConError = Object.keys(erroresActuales)[0] as keyof ErroresConfigSitio;
+      document.getElementById(`config-${primerCampoConError}`)?.focus();
+      return;
+    }
+
     setGuardando(true);
     try {
       const resp = await fetch("/api/admin/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(config),
+        body: JSON.stringify(campos),
       });
       const data = (await resp.json()) as { ok: boolean; config?: ConfigSitio; mensaje?: string };
       if (!resp.ok || !data.ok || !data.config) {
+        // Esto solo debería pasar por algo que el form no pudo anticipar
+        // (ej. se cayó la conexión a mitad de camino) — la validación de
+        // campo ya cubrió los casos previsibles antes de llegar acá.
         toast.error(data.mensaje ?? "No se pudo guardar la configuración.");
         return;
       }
@@ -78,26 +114,32 @@ export function ConfiguracionForm() {
       ) : (
         <div className="mt-4 flex flex-col gap-4">
           <Campo
-            id="config-whatsapp"
+            id="config-whatsappVentas"
             etiqueta="WhatsApp de ventas"
             ayuda="Formato internacional, solo dígitos (ej: 584121234567, sin '+' ni espacios). Vacío = se usa el configurado en Vercel."
             value={config.whatsappVentas ?? ""}
-            onChange={(v) => setConfig({ ...config, whatsappVentas: v })}
+            onChange={(v) => campo("whatsappVentas", v)}
             type="tel"
+            maxLength={WHATSAPP_VENTAS_MAX}
+            error={errores.whatsappVentas}
           />
           <CampoTextarea
-            id="config-descripcion"
+            id="config-descripcionEmpresa"
             etiqueta="Descripción de la empresa"
             ayuda="Se muestra en el pie de página del catálogo. Vacío = se usa el texto por defecto."
             value={config.descripcionEmpresa ?? ""}
-            onChange={(v) => setConfig({ ...config, descripcionEmpresa: v })}
+            onChange={(v) => campo("descripcionEmpresa", v)}
+            maxLength={DESCRIPCION_EMPRESA_MAX}
+            error={errores.descripcionEmpresa}
           />
           <Campo
             id="config-rif"
             etiqueta="RIF"
             ayuda="Vacío = se usa el RIF por defecto."
             value={config.rif ?? ""}
-            onChange={(v) => setConfig({ ...config, rif: v })}
+            onChange={(v) => campo("rif", v)}
+            maxLength={RIF_MAX}
+            error={errores.rif}
           />
         </div>
       )}
@@ -114,6 +156,24 @@ export function ConfiguracionForm() {
   );
 }
 
+// Encabezado compartido por Campo/CampoTextarea: etiqueta + contador de
+// caracteres — visible siempre que el campo tenga un maxLength, para que el
+// límite no sea una sorpresa recién al guardar.
+function EncabezadoCampo({ id, etiqueta, valor, maxLength }: { id: string; etiqueta: string; valor: string; maxLength?: number }) {
+  return (
+    <div className="mb-1 flex items-baseline justify-between gap-2">
+      <label htmlFor={id} className="text-xs font-medium text-ink-900">
+        {etiqueta}
+      </label>
+      {maxLength !== undefined && (
+        <span className={`text-[11px] tabular-nums ${valor.length >= maxLength ? "text-danger-600" : "text-ink-500"}`}>
+          {valor.length}/{maxLength}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function Campo({
   id,
   etiqueta,
@@ -121,6 +181,8 @@ function Campo({
   value,
   onChange,
   type = "text",
+  maxLength,
+  error,
 }: {
   id: string;
   etiqueta: string;
@@ -128,20 +190,35 @@ function Campo({
   value: string;
   onChange: (v: string) => void;
   type?: string;
+  maxLength?: number;
+  error?: string;
 }) {
   return (
     <div>
-      <label htmlFor={id} className="mb-1 block text-xs font-medium text-ink-900">
-        {etiqueta}
-      </label>
+      <EncabezadoCampo id={id} etiqueta={etiqueta} valor={value} maxLength={maxLength} />
       <input
         id={id}
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-ink-200 px-3 py-2 text-sm text-ink-900 focus:border-accent-600"
+        maxLength={maxLength}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? `${id}-error` : ayuda ? `${id}-ayuda` : undefined}
+        className={`w-full rounded-lg border bg-paper px-3 py-2 text-sm text-ink-900 focus:border-accent-600 ${
+          error ? "border-danger-600" : "border-ink-200"
+        }`}
       />
-      {ayuda && <p className="mt-1 text-[11px] text-ink-500">{ayuda}</p>}
+      {error ? (
+        <p id={`${id}-error`} className="mt-1 text-xs text-danger-600">
+          {error}
+        </p>
+      ) : (
+        ayuda && (
+          <p id={`${id}-ayuda`} className="mt-1 text-[11px] text-ink-500">
+            {ayuda}
+          </p>
+        )
+      )}
     </div>
   );
 }
@@ -152,26 +229,43 @@ function CampoTextarea({
   ayuda,
   value,
   onChange,
+  maxLength,
+  error,
 }: {
   id: string;
   etiqueta: string;
   ayuda?: string;
   value: string;
   onChange: (v: string) => void;
+  maxLength?: number;
+  error?: string;
 }) {
   return (
     <div>
-      <label htmlFor={id} className="mb-1 block text-xs font-medium text-ink-900">
-        {etiqueta}
-      </label>
+      <EncabezadoCampo id={id} etiqueta={etiqueta} valor={value} maxLength={maxLength} />
       <textarea
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={3}
-        className="w-full resize-none rounded-lg border border-ink-200 px-3 py-2 text-sm text-ink-900 focus:border-accent-600"
+        maxLength={maxLength}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? `${id}-error` : ayuda ? `${id}-ayuda` : undefined}
+        className={`w-full resize-none rounded-lg border bg-paper px-3 py-2 text-sm text-ink-900 focus:border-accent-600 ${
+          error ? "border-danger-600" : "border-ink-200"
+        }`}
       />
-      {ayuda && <p className="mt-1 text-[11px] text-ink-500">{ayuda}</p>}
+      {error ? (
+        <p id={`${id}-error`} className="mt-1 text-xs text-danger-600">
+          {error}
+        </p>
+      ) : (
+        ayuda && (
+          <p id={`${id}-ayuda`} className="mt-1 text-[11px] text-ink-500">
+            {ayuda}
+          </p>
+        )
+      )}
     </div>
   );
 }
