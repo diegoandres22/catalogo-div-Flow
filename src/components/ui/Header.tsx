@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CarritoBoton } from "@/components/carrito/CarritoBoton";
 import { BuscadorNavbar } from "./BuscadorNavbar";
+import { DescargaOffline } from "./DescargaOffline";
 
 export function Header() {
   return (
@@ -22,7 +23,8 @@ export function Header() {
           </Link>
         </div>
         <BuscadorNavbar />
-        <div className="justify-self-end">
+        <div className="flex items-center justify-self-end gap-2">
+          <DescargaOffline />
           <CarritoBoton />
         </div>
       </div>
