@@ -13,17 +13,24 @@ export function Header() {
           carrito no pesan lo mismo. La columna central se acota con
           minmax(piso, techo) para que el buscador nunca se estire de más
           en desktop ni se aplaste por debajo de un ancho usable en mobile. */}
-      <div className="mx-auto grid max-w-6xl grid-cols-[1fr_minmax(104px,220px)_1fr] items-center gap-2 px-4 py-3 sm:grid-cols-[1fr_minmax(140px,280px)_1fr] sm:gap-3 sm:px-6">
+      <div className="mx-auto grid max-w-6xl grid-cols-[minmax(0,1fr)_minmax(104px,220px)_minmax(0,1fr)] items-center gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(140px,280px)_minmax(0,1fr)] sm:gap-3 sm:px-6">
+        {/* minmax(0,1fr) en vez de 1fr a secas en los costados: un 1fr
+            "pelado" no se achica por debajo del ancho de SU contenido, así
+            que si algún día ese contenido crece (ej. el botón de descarga
+            mostrando además el de cancelar mientras descarga) empuja TODO
+            el header más ancho que la pantalla en vez de contenerse acá. Con
+            el piso en 0, el contenido de esta columna puede recortarse/
+            scrollear puntualmente sin romper el layout del resto. */}
         {/* En mobile el logo se acorta ("Catálogo") para dejarle ancho
             usable al buscador — a partir de sm ya entra completo. */}
-        <div className="justify-self-start">
+        <div className="min-w-0 justify-self-start">
           <Link href="/" className="shrink-0 text-base font-semibold tracking-tight text-ink-900">
             <span className="sm:hidden">Catálogo</span>
             <span className="hidden sm:inline">Catálogo Mayorista</span>
           </Link>
         </div>
         <BuscadorNavbar />
-        <div className="flex items-center justify-self-end gap-2">
+        <div className="flex min-w-0 items-center justify-self-end gap-1.5 sm:gap-2">
           <DescargaOffline />
           <CarritoBoton />
         </div>

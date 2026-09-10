@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { leerCatalogoPublico, leerColecciones } from "@/lib/blob";
 import { colorPorDefecto } from "@/lib/producto";
 import { logError } from "@/lib/logger";
+import { LOGOS_FOOTER } from "@/lib/logosFooter";
 
 // Manifiesto para la "descarga offline" (ver DescargaOffline.tsx) — POR
 // MARCA, no el catálogo entero: con ~1600+ variantes, bajar todo de una vez
@@ -80,6 +81,13 @@ export async function GET(request: NextRequest) {
     // otras colecciones no correspondan a la marca descargada.
     for (const coleccion of colecciones) {
       if (coleccion.imagenUrl) imagenes.add(coleccion.imagenUrl);
+    }
+
+    // Logos de marca del Footer (ver Footer.tsx y esLogoDeMarca en sw.js):
+    // se muestran en TODAS las páginas, así que van en cualquier descarga
+    // sin condicionarlos a la marca — sin esto quedaban rotos offline.
+    for (const logo of LOGOS_FOOTER) {
+      imagenes.add(logo.src);
     }
 
     return NextResponse.json({

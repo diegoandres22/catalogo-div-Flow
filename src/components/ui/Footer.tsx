@@ -1,12 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import type { ConfigSitio } from "@/lib/types";
-
-const MARCAS = [
-  { nombre: "Volpe", src: "/marcas/volpe.png", ancho: 783, alto: 161 },
-  { nombre: "Vita Kids", src: "/marcas/vitakids.png", ancho: 976, alto: 346 },
-  { nombre: "Kriza", src: "/marcas/kriza.png", ancho: 1001, alto: 275 },
-];
+import { LOGOS_FOOTER } from "@/lib/logosFooter";
 
 // Texto por defecto — se muestra mientras el admin no configure nada
 // distinto desde /admin/configuracion (ConfigSitio en Vercel Blob), y
@@ -38,13 +33,24 @@ export function Footer({ config }: Props = {}) {
         <div>
           <h2 className="text-sm font-semibold text-ink-900">Nuestras marcas</h2>
           <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-3">
-            {MARCAS.map((marca) => (
+            {LOGOS_FOOTER.map((marca) => (
               <Image
                 key={marca.nombre}
                 src={marca.src}
                 alt={marca.nombre}
                 width={marca.ancho}
                 height={marca.alto}
+                // unoptimized: sin esto, el <img> real termina apuntando a
+                // /_next/image?url=...&w=...&q=... (el optimizador de Next),
+                // una URL dinámica que el service worker no tiene forma
+                // confiable de precachear ni de reconocer como "la misma
+                // imagen" offline. Con esto, el src es directo a
+                // /marcas/*.png — una URL fija que sw.js sí puede guardar
+                // (ver esAssetDeMarca) y DescargaOffline agrega al
+                // manifiesto de cada descarga (ver manifiesto/route.ts).
+                // Son 3 logos chicos en el footer, el costo de no optimizar
+                // es insignificante.
+                unoptimized
                 className="h-7 w-auto object-contain"
               />
             ))}

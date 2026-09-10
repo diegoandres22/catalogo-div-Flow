@@ -81,8 +81,20 @@ export function ModoOffline() {
   // fuera, ambos competirían por la misma posición al hacer scroll. Como
   // banner normal, queda arriba de todo en el flujo del documento (antes
   // del Header) sin pisarlo.
+  //
+  // Colores de "warning" (no el ink/negro neutro de antes): esto es un
+  // estado que necesita notarse al primer vistazo, no un texto más — mismo
+  // criterio de color que ya usa "Desactualizada" en DescargaOffline.tsx.
   return (
-    <div role="status" className="bg-ink-900 px-4 py-1.5 text-center text-xs font-medium text-white">
+    <div
+      role="status"
+      className="flex items-center justify-center gap-1.5 border-b border-warning-600/20 bg-warning-100 px-4 py-2 text-center text-xs font-semibold text-warning-600"
+    >
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" className="shrink-0">
+        <path d="M2 8.82a15 15 0 0 1 20 0M5 12.859a10 10 0 0 1 14 0M8.5 16.429a5 5 0 0 1 7 0" strokeLinecap="round" />
+        <path d="M2 2l20 20" strokeLinecap="round" />
+        <circle cx="12" cy="20" r="1" fill="currentColor" stroke="none" />
+      </svg>
       Sin conexión — mostrando lo último guardado en este dispositivo
     </div>
   );

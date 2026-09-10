@@ -25,9 +25,10 @@
 //         ("/?marca=…") sirve de mejor esfuerzo — normalmente hay una sola;
 //      3) la landing ("/" sin query), si se descargó;
 //      4) offline.html, si ninguna de las anteriores está.
-//  - Fotos de producto (cdn.shopify.com) y portadas/guía de tallas servidas
-//    por /api/imagenes/* : solo lectura de caché — si no están, se pide a
-//    la red (sin guardar la respuesta).
+//  - Fotos de producto (cdn.shopify.com), portadas servidas por
+//    /api/imagenes/*, y los logos de marca del Footer (/marcas/*.png):
+//    solo lectura de caché — si no están, se pide a la red (sin guardar la
+//    respuesta).
 //  - Assets estáticos de Next (/_next/static/*, con hash — no cambian
 //    nunca): misma lógica de solo lectura.
 //  - /api/* (salvo /api/imagenes/*, ver arriba) y /admin/*: nunca se toca —
@@ -76,6 +77,14 @@ function esAssetEstaticoDeNext(url) {
 
 function esFotoDeProducto(url) {
   return url.hostname === "cdn.shopify.com";
+}
+
+// Logos de marca del Footer (public/marcas/*.png, mismo origen) — el
+// componente los pide con "unoptimized" (ver Footer.tsx) para que el <img>
+// real apunte acá directo y no a /_next/image?..., que es una URL dinámica
+// imposible de precachear de forma confiable.
+function esLogoDeMarca(url) {
+  return url.origin === self.location.origin && url.pathname.startsWith("/marcas/");
 }
 
 // Puente propio hacia imágenes privadas (portadas de colección, guía de
@@ -151,7 +160,7 @@ self.addEventListener("fetch", (evento) => {
 
   if (esRutaAdmin(url)) return; // se deja pasar sin intervenir — nunca se cachea el panel admin ni sus llamadas mutantes
 
-  if (esAssetEstaticoDeNext(url) || esFotoDeProducto(url) || esImagenProxeada(url)) {
+  if (esAssetEstaticoDeNext(url) || esFotoDeProducto(url) || esImagenProxeada(url) || esLogoDeMarca(url)) {
     evento.respondWith(soloLecturaDeCache(peticion, esAssetEstaticoDeNext(url) ? CACHE_ASSETS : CACHE_IMAGENES));
     return;
   }

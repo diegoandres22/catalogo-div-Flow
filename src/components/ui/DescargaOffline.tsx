@@ -467,7 +467,11 @@ export function DescargaOffline() {
         title={hayDesactualizada ? "El catálogo cambió desde tu última descarga — volvé a descargar" : undefined}
         className={`relative flex shrink-0 items-center gap-1.5 overflow-hidden rounded-full border px-3.5 py-2 text-sm font-medium transition-colors disabled:cursor-wait ${
           descargando
-            ? "border-info-600 bg-info-600 text-white"
+            ? // Mismo tratamiento "suave" (fondo pastel + texto/borde del
+              // color, sin relleno sólido) que el estado "Descargado" de acá
+              // abajo — un azul sólido a pleno color desentonaba con el
+              // resto de la paleta, que es prácticamente toda neutra.
+              "border-info-600 bg-info-100 text-info-600"
             : cancelando
               ? "border-ink-300 bg-ink-100 text-ink-500"
               : hayAlgunaDescarga
@@ -477,7 +481,7 @@ export function DescargaOffline() {
       >
         {descargando && (
           <span
-            className="absolute inset-y-0 left-0 bg-white/25 transition-[width] duration-200"
+            className="absolute inset-y-0 left-0 bg-info-600/15 transition-[width] duration-200"
             style={{ width: `${porcentaje}%` }}
             aria-hidden="true"
           />
