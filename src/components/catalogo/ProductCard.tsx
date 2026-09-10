@@ -9,6 +9,7 @@ import { SelectorCurvaCard } from "./SelectorCurvaCard";
 import type { Producto } from "@/lib/types";
 import { colorPorDefecto, curvaPorDefecto, precioTextoProducto, promocionActiva, tieneStockCurva, tieneStockProducto } from "@/lib/producto";
 import { esCalzado } from "@/lib/transform";
+import { useSinConexion } from "@/hooks/useSinConexion";
 
 export function ProductCard({
   producto,
@@ -36,6 +37,14 @@ export function ProductCard({
       ? `/producto/${producto.id}?volver=${encodeURIComponent(volver)}`
       : `/producto/${producto.id}`;
 
+  // El detalle de producto no se descarga ni funciona offline (ver la nota
+  // grande en api/descarga/manifiesto/route.ts) — sin conexión, la tarjeta
+  // se queda 100% funcional (agregar al carrito, elegir curva, compartir)
+  // salvo por esto: el link al detalle se desactiva acá mismo, en vez de
+  // dejar que el vendedor toque, navegue, y recién ahí se encuentre con el
+  // error.
+  const sinConexion = useSinConexion();
+
   const [curvaId, setCurvaId] = useState(() => curvaPorDefecto(colorDefecto).id);
   const curvaSeleccionada = colorDefecto.curvas.find((c) => c.id === curvaId) ?? curvaPorDefecto(colorDefecto);
   // Accesorios no tienen curva real (siempre "Único", ver transform.ts): la
@@ -58,7 +67,11 @@ export function ProductCard({
     // en el DOM, terminaban pintándose POR ENCIMA del navbar al hacer
     // scroll. Con "isolate" el z-index interno de la card queda contenido
     // adentro y nunca puede escapar por encima de nada externo.
-    <div className="group relative isolate flex flex-col overflow-hidden rounded-2xl border border-ink-200 bg-paper-raised transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-ink-900/5">
+    <div
+      className={`group relative isolate flex flex-col overflow-hidden rounded-2xl border border-ink-200 bg-paper-raised transition-all duration-200 ${
+        sinConexion ? "opacity-80" : "hover:-translate-y-0.5 hover:shadow-lg hover:shadow-ink-900/5"
+      }`}
+    >
       <div className="relative aspect-[3/4] w-full">
         <ImagenProducto
           src={colorDefecto.fotos[0]}
@@ -111,11 +124,24 @@ export function ProductCard({
         </div>
       </div>
 
-      <Link
-        href={href}
-        aria-label={`Ver ${producto.marca} ${producto.modelo} — ${precioTextoProducto(producto)}`}
-        className="absolute inset-0 z-10 rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2"
-      />
+      {sinConexion ? (
+        // Sin <a href>: ni el click normal ni el interceptor de
+        // ModoOffline.tsx tienen nada que atajar acá — directamente no hay
+        // navegación que disparar. cursor-not-allowed + title comunican por
+        // qué, sin agregar un badge/ícono nuevo a una tarjeta que ya tiene
+        // varios.
+        <div
+          aria-hidden="true"
+          title="El detalle no está disponible sin conexión"
+          className="absolute inset-0 z-10 cursor-not-allowed rounded-2xl"
+        />
+      ) : (
+        <Link
+          href={href}
+          aria-label={`Ver ${producto.marca} ${producto.modelo} — ${precioTextoProducto(producto)}`}
+          className="absolute inset-0 z-10 rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-600 focus-visible:ring-offset-2"
+        />
+      )}
     </div>
   );
 }

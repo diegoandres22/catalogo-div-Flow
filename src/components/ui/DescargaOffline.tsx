@@ -15,26 +15,36 @@ import { logError } from "@/lib/logger";
 // separado y se acumula en las mismas 3 cachés (no se pisan entre sí), así
 // que un vendedor que vende dos marcas simplemente descarga las dos.
 //
+// SOLO la vista principal del catálogo — el detalle de producto
+// (/producto/[id]) no se descarga ni funciona offline a propósito (ver la
+// nota grande en api/descarga/manifiesto/route.ts y ProductCard.tsx, que
+// deshabilita el click que llevaría ahí sin conexión).
+//
 // Al elegir una marca:
 //  1) pide el manifiesto de ESA marca (/api/descarga/manifiesto?marca=...):
-//     "/", "/?marca=<marca>" y cada /producto/[id] de esa marca, más sus
-//     fotos y las portadas de colección (siempre, son livianas — así "/" se
-//     ve completa aunque la marca elegida no sea la de esa colección);
+//     "/", "/?marca=<marca>", una foto por producto (la del color por
+//     defecto — la única que la tarjeta de la grilla pinta) y las portadas
+//     de colección (siempre, son livianas — así "/" se ve completa aunque
+//     la marca elegida no sea la de esa colección);
 //  2) además arranca con los assets de /_next/static/* que YA están
 //     cargados en la página actual (chunks compartidos + CSS global);
 //  3) descarga todo con concurrencia limitada y timeout por request,
 //     escribiendo cada respuesta directo en la Cache API;
 //  4) a medida que llega el HTML de cada página, la revisa por referencias a
-//     OTROS assets de /_next/static/* (el chunk propio de /producto/[id],
-//     por ejemplo) y los agrega a la cola.
+//     OTROS assets de /_next/static/* (el chunk propio de un client
+//     component del catálogo, por ejemplo) y los agrega a la cola.
 const CACHE_VERSION = "v2";
 const CACHE_PAGINAS = `catalogo-paginas-${CACHE_VERSION}`;
 const CACHE_ASSETS = `catalogo-assets-${CACHE_VERSION}`;
 const CACHE_IMAGENES = `catalogo-imagenes-${CACHE_VERSION}`;
-// Marca -> generadoEn del catálogo en el momento en que se descargó esa
-// marca — para poder avisar "esta descarga quedó desactualizada" sin tener
-// que volver a bajar todo para saberlo.
-const LLAVE_DESCARGAS = "descarga-offline-marcas";
+// Por marca: generadoEn del catálogo al momento de descargarla (para avisar
+// "quedó desactualizada" sin volver a bajar todo) + exactamente qué URLs
+// escribió esa descarga y en qué caché — así "Eliminar" puede borrar
+// precisamente eso y nada más. Bump de versión de la llave porque el shape
+// cambió (antes era marca -> string): a un vendedor con datos del formato
+// viejo simplemente se le muestra "nada descargado" una vez, no vale la
+// pena migrar un valor que se reconstruye solo con volver a descargar.
+const LLAVE_DESCARGAS = "descarga-offline-marcas-v2";
 const CONCURRENCIA = 6;
 const TIMEOUT_MS = 20000;
 
@@ -59,21 +69,30 @@ interface Item {
   cache: string;
 }
 
+interface EntradaDescarga {
+  generadoEn: string;
+  // url -> nombre de caché en la que quedó guardada. Se usa para poder
+  // borrar exactamente esto al eliminar la marca — sin tocar recursos
+  // compartidos ("/", portadas de colección, chunks de Next) que otra
+  // marca descargada todavía necesita (ver eliminarMarca).
+  urls: Record<string, string>;
+}
+
 type Estado =
   | { fase: "inactivo" }
   | { fase: "descargando"; marca: string; hechos: number; total: number }
   | { fase: "cancelando"; marca: string };
 
-function leerDescargas(): Record<string, string> {
+function leerDescargas(): Record<string, EntradaDescarga> {
   try {
     const crudo = localStorage.getItem(LLAVE_DESCARGAS);
-    return crudo ? (JSON.parse(crudo) as Record<string, string>) : {};
+    return crudo ? (JSON.parse(crudo) as Record<string, EntradaDescarga>) : {};
   } catch {
     return {};
   }
 }
 
-function guardarDescargas(d: Record<string, string>): void {
+function guardarDescargas(d: Record<string, EntradaDescarga>): void {
   try {
     localStorage.setItem(LLAVE_DESCARGAS, JSON.stringify(d));
   } catch {
@@ -94,16 +113,16 @@ function esCrossOrigin(url: string): boolean {
 // descargada — cubre lo que ESE build generó para esa ruta puntual (el
 // manifiesto del servidor no sabe nada de nombres de archivo de Next).
 //
-// OJO: no alcanza con buscar solo src="..."/href="...". La página de detalle
-// de producto (force-dynamic, con varios client components) trae bastantes
-// de sus chunks referenciados ÚNICAMENTE dentro del payload de streaming de
-// React (los <script>self.__next_f.push([...])</script> inline), donde las
-// rutas aparecen con las comillas escapadas (\"/_next/static/chunks/xyz.js\")
-// en vez de como atributo HTML normal — ese patrón nunca matcheaba con
-// src="..."/href="...", así que esos chunks quedaban SIN descargar. Offline,
-// el navegador intenta cargarlos igual al hidratar, la carga falla (no hay
-// red) y la vista de detalle se rompe (ver error.tsx). Por eso acá se busca
-// la subcadena de la ruta directamente, sin depender de qué la rodea.
+// OJO: no alcanza con buscar solo src="..."/href="...". La grilla del
+// catálogo (con Filtros, tarjetas, carrito, etc. como client components)
+// trae varios de sus chunks referenciados ÚNICAMENTE dentro del payload de
+// streaming de React (los <script>self.__next_f.push([...])</script>
+// inline), donde las rutas aparecen con las comillas escapadas
+// (\"/_next/static/chunks/xyz.js\") en vez de como atributo HTML normal —
+// ese patrón nunca matcheaba con src="..."/href="...", así que esos chunks
+// quedaban SIN descargar y, offline, el navegador intentaba cargarlos igual
+// al hidratar y fallaba. Por eso acá se busca la subcadena de la ruta
+// directamente, sin depender de qué la rodea.
 const RE_ASSET = /\/_next\/static\/[\w./%-]+/g;
 function extraerAssetsDelHtml(html: string): string[] {
   const encontrados = new Set<string>();
@@ -148,7 +167,7 @@ export function DescargaOffline() {
   const [marcas, setMarcas] = useState<string[] | null>(null);
   const [cargandoMarcas, setCargandoMarcas] = useState(false);
   const [generadoEnActual, setGeneradoEnActual] = useState<string | null>(null);
-  const [descargas, setDescargas] = useState<Record<string, string>>({});
+  const [descargas, setDescargas] = useState<Record<string, EntradaDescarga>>({});
   const [estado, setEstado] = useState<Estado>({ fase: "inactivo" });
   const enCurso = useRef(false);
   const controladorActual = useRef<AbortController | null>(null);
@@ -328,7 +347,15 @@ export function DescargaOffline() {
         return;
       }
 
-      const nuevasDescargas = { ...leerDescargas(), [marca]: manifiesto.generadoEn };
+      // Se acumula sobre lo que ya tenía guardado esta marca (si es una
+      // re-descarga) para no "olvidar" URLs que esta corrida no llegó a
+      // re-escribir por un fallo puntual pero que siguen en caché de una
+      // descarga anterior — así "Eliminar" las sigue limpiando igual.
+      const urlsPrevias = leerDescargas()[marca]?.urls ?? {};
+      const urls: Record<string, string> = { ...urlsPrevias };
+      for (const item of escritos) urls[item.url] = item.cache;
+
+      const nuevasDescargas = { ...leerDescargas(), [marca]: { generadoEn: manifiesto.generadoEn, urls } };
       guardarDescargas(nuevasDescargas);
       setDescargas(nuevasDescargas);
       setGeneradoEnActual(manifiesto.generadoEn);
@@ -365,6 +392,51 @@ export function DescargaOffline() {
     controladorActual.current.abort();
   }
 
+  // Borra del dispositivo una marca ya descargada. Solo toca las URLs que
+  // esa marca escribió (ver EntradaDescarga) y, de esas, únicamente las que
+  // ninguna OTRA marca descargada sigue usando — "/", portadas de
+  // colección y chunks de Next se comparten entre marcas, así que si el
+  // vendedor tiene dos descargadas y borra una, esos recursos compartidos
+  // se quedan mientras la otra marca los siga necesitando.
+  async function eliminarMarca(marca: string) {
+    const actuales = leerDescargas();
+    const entrada = actuales[marca];
+    if (!entrada) return;
+
+    const enUsoPorOtras = new Set<string>();
+    for (const [otraMarca, otraEntrada] of Object.entries(actuales)) {
+      if (otraMarca === marca) continue;
+      for (const url of Object.keys(otraEntrada.urls ?? {})) enUsoPorOtras.add(url);
+    }
+
+    await Promise.all(
+      Object.entries(entrada.urls ?? {}).map(async ([url, nombreCache]) => {
+        if (enUsoPorOtras.has(url)) return;
+        try {
+          const cache = await caches.open(nombreCache);
+          await cache.delete(url);
+        } catch {
+          // no crítico — en el peor caso queda un archivo de más en caché.
+        }
+      }),
+    );
+
+    const nuevasDescargas = { ...actuales };
+    delete nuevasDescargas[marca];
+    guardarDescargas(nuevasDescargas);
+    setDescargas(nuevasDescargas);
+    toast.success(`"${marca}" eliminada de este dispositivo.`);
+  }
+
+  function confirmarEliminarMarca(marca: string) {
+    toast(`¿Eliminar "${marca}" descargada?`, {
+      description: "Deja de verse sin conexión en este dispositivo. Los recursos que comparte con otra marca descargada no se tocan.",
+      duration: Infinity,
+      action: { label: "Eliminar", onClick: () => eliminarMarca(marca) },
+      cancel: { label: "Cancelar", onClick: () => {} },
+    });
+  }
+
   if (!soportado) return null;
 
   const descargando = estado.fase === "descargando";
@@ -374,7 +446,7 @@ export function DescargaOffline() {
   const porcentaje = estado.fase === "descargando" && estado.total > 0 ? Math.round((estado.hechos / estado.total) * 100) : 0;
   const hayAlgunaDescarga = Object.keys(descargas).length > 0;
   const hayDesactualizada =
-    generadoEnActual !== null && Object.values(descargas).some((fecha) => fecha !== generadoEnActual);
+    generadoEnActual !== null && Object.values(descargas).some((d) => d.generadoEn !== generadoEnActual);
 
   return (
     <div className="relative flex shrink-0 items-center gap-1.5">
@@ -466,22 +538,22 @@ export function DescargaOffline() {
           ) : marcas && marcas.length > 0 ? (
             <ul className="flex flex-col gap-0.5">
               {marcas.map((marca) => {
-                const fechaDescarga = descargas[marca];
-                const desactualizada = Boolean(fechaDescarga && generadoEnActual && fechaDescarga !== generadoEnActual);
+                const entrada = descargas[marca];
+                const desactualizada = Boolean(entrada && generadoEnActual && entrada.generadoEn !== generadoEnActual);
                 return (
-                  <li key={marca}>
+                  <li key={marca} className="flex items-center gap-1">
                     <button
                       type="button"
                       onClick={() => descargarMarca(marca)}
                       disabled={enProceso}
-                      className="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-2 text-left text-sm text-ink-900 transition-colors hover:bg-ink-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-lg px-2 py-2 text-left text-sm text-ink-900 transition-colors hover:bg-ink-100 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <span>{marca}</span>
                       {estado.fase === "descargando" && estado.marca === marca ? (
                         <span className="text-[11px] font-medium text-ink-500">{porcentaje}%</span>
                       ) : desactualizada ? (
                         <span className="text-[11px] font-medium text-warning-600">Desactualizada</span>
-                      ) : fechaDescarga ? (
+                      ) : entrada ? (
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" className="shrink-0 text-ink-500">
                           <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
@@ -489,6 +561,20 @@ export function DescargaOffline() {
                         <span className="text-[11px] text-ink-500">Descargar</span>
                       )}
                     </button>
+                    {entrada && (
+                      <button
+                        type="button"
+                        onClick={() => confirmarEliminarMarca(marca)}
+                        disabled={enProceso}
+                        aria-label={`Eliminar "${marca}" descargada`}
+                        title="Eliminar descarga"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-ink-500 transition-colors hover:bg-danger-100 hover:text-danger-600 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                          <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6h16Z" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </button>
+                    )}
                   </li>
                 );
               })}

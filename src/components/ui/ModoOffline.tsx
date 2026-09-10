@@ -1,21 +1,8 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect } from "react";
 import { logError } from "@/lib/logger";
-
-// navigator.onLine es estado externo al de React (vive en el navegador) —
-// useSyncExternalStore es la forma recomendada de leerlo sin el
-// setState-dentro-de-efecto que dispara un render extra en cada montaje.
-function suscribirseAConexion(avisar: () => void) {
-  window.addEventListener("online", avisar);
-  window.addEventListener("offline", avisar);
-  return () => {
-    window.removeEventListener("online", avisar);
-    window.removeEventListener("offline", avisar);
-  };
-}
-const leerSinConexion = () => !navigator.onLine;
-const leerSinConexionEnServidor = () => false; // SSR no tiene navigator — se asume online, se corrige apenas hidrata
+import { useSinConexion } from "@/hooks/useSinConexion";
 
 // Registra el service worker (public/sw.js) — lo que hace que lo que el
 // vendedor descargó explícitamente (ver DescargaOffline.tsx) siga disponible
@@ -23,7 +10,7 @@ const leerSinConexionEnServidor = () => false; // SSR no tiene navigator — se 
 // conexión, para que quede claro que lo que se ve es la última versión
 // guardada y no la más actual.
 export function ModoOffline() {
-  const sinConexion = useSyncExternalStore(suscribirseAConexion, leerSinConexion, leerSinConexionEnServidor);
+  const sinConexion = useSinConexion();
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
@@ -70,6 +57,15 @@ export function ModoOffline() {
 
       const destino = new URL(elemento.href, window.location.href);
       if (destino.origin !== window.location.origin) return;
+
+      // El detalle de producto no se descarga ni funciona offline (ver la
+      // nota grande en api/descarga/manifiesto/route.ts) — ProductCard ya
+      // no renderiza este link ahí, pero se corta acá también por si algún
+      // otro <a> viejo (favorito guardado, etc.) todavía apunta a uno.
+      if (destino.pathname.startsWith("/producto/")) {
+        evento.preventDefault();
+        return;
+      }
 
       evento.preventDefault();
       window.location.href = destino.href;
