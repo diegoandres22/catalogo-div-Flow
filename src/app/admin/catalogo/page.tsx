@@ -8,7 +8,7 @@ export const metadata = { title: "Catálogo · Panel de administración" };
 export const dynamic = "force-dynamic";
 
 export default async function PaginaAdminCatalogo() {
-  const historial = await leerHistorial();
+  const historial = await leerHistorial(3);
 
   return (
     <>
